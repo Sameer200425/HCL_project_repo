@@ -22,7 +22,7 @@ from .models import User, APIKey
 logger = logging.getLogger(__name__)
 
 # Feature flag to disable authentication entirely
-AUTH_DISABLED = os.getenv("DISABLE_AUTH", "true").lower() in {"1", "true", "yes", "on"}
+AUTH_DISABLED = os.getenv("DISABLE_AUTH", "false").lower() in {"1", "true", "yes", "on"}
 PUBLIC_USER_EMAIL = os.getenv("PUBLIC_USER_EMAIL", "public@example.local")
 PUBLIC_USER_USERNAME = os.getenv("PUBLIC_USER_USERNAME", "public_user")
 PUBLIC_USER_FULL_NAME = os.getenv("PUBLIC_USER_FULL_NAME", "Public Analyst")
