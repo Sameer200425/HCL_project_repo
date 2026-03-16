@@ -1,0 +1,10 @@
+{
+    "python.defaultInterpreterPath": "C:\\Program Files\\Python311\\python.exe",
+    "css.validate": false,
+    "scss.validate": false,
+    "less.validate": false,
+    "css.customData": [".vscode/tailwind.json"],
+    "files.associations": {
+        "*.css": "tailwindcss"
+    }
+}

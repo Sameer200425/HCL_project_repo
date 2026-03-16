@@ -1,0 +1,16 @@
+{
+  "typeCheckingMode": "basic",
+  "extraPaths": [
+    ".",
+    "C:\\Users\\LENOVO\\AppData\\Roaming\\Python\\Python311\\site-packages"
+  ],
+  "exclude": [
+    ".venv",
+    "**/node_modules",
+    "**/__pycache__",
+    "**/.*"
+  ],
+  "ignore": [
+    ".venv"
+  ]
+}

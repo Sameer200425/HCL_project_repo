@@ -1,0 +1,74 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "check-venv",
+			"type": "shell",
+			"command": "cmd",
+			"args": [
+				"/c",
+				"cd /d C:\\Users\\LENOVO\\.vscode\\project\\bank_vit_project && .venv\\Scripts\\activate.bat && python --version && pip show torch numpy pyyaml"
+			]
+		},
+		{
+			"label": "run-pipeline",
+			"type": "shell",
+			"command": "cmd",
+			"args": [
+				"/c",
+				"cd /d C:\\Users\\LENOVO\\.vscode\\project\\bank_vit_project && .venv\\Scripts\\activate.bat && python run_pipeline.py"
+			]
+		},
+		{
+			"label": "pipeline-run",
+			"type": "shell",
+			"command": "cmd",
+			"args": [
+				"/c",
+				"cd /d C:\\Users\\LENOVO\\.vscode\\project\\bank_vit_project && .venv\\Scripts\\activate.bat && python run_pipeline.py 2>&1"
+			]
+		},
+		{
+			"label": "run-evaluation",
+			"type": "shell",
+			"command": "cmd",
+			"args": [
+				"/c",
+				"cd /d C:\\Users\\LENOVO\\.vscode\\project\\bank_vit_project && .venv\\Scripts\\activate.bat && python run_evaluation.py 2>&1"
+			]
+		},
+		{
+			"label": "fastapi-server",
+			"type": "shell",
+			"command": "cmd",
+			"args": [
+				"/c",
+				"cd /d C:\\Users\\LENOVO\\.vscode\\project\\bank_vit_project && .venv\\Scripts\\activate.bat && uvicorn backend.main:app --host 0.0.0.0 --port 8000 --reload 2>&1"
+			]
+		},
+		{
+			"label": "fastapi-8001",
+			"type": "shell",
+			"command": "cmd",
+			"args": [
+				"/c",
+				"cd /d C:\\Users\\LENOVO\\.vscode\\project\\bank_vit_project && .venv\\Scripts\\activate.bat && uvicorn backend.main:app --host 127.0.0.1 --port 8001 --reload 2>&1"
+			]
+		},
+		{
+			"label": "fastapi-start",
+			"type": "shell",
+			"command": "cmd",
+			"args": [
+				"/c",
+				"cd /d C:\\Users\\LENOVO\\.vscode\\project\\bank_vit_project && .venv\\Scripts\\activate.bat && pip install email-validator && uvicorn backend.main:app --host 127.0.0.1 --port 8001 --reload 2>&1"
+			]
+		},
+		{
+			"label": "frontend-dev",
+			"type": "shell",
+			"command": "cd frontend && npm install && npm run dev",
+			"problemMatcher": []
+		}
+	]
+}

@@ -1,0 +1,11 @@
+__pycache__
+*.pyc
+.git
+.venv
+node_modules
+.next
+*.pth
+data/
+logs/
+results/
+model_registry/

@@ -1,0 +1,12 @@
+.venv
+__pycache__
+checkpoints/*.pth
+checkpoints/*.onnx
+checkpoints/*.joblib
+logs/
+results/
+*.log
+*.txt
+node_modules/
+.next/
+
