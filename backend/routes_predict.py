@@ -7,7 +7,7 @@ API endpoints for fraud detection predictions.
 import io
 import hashlib
 from datetime import datetime
-from typing import List, Optional, cast
+from typing import List, Optional, Protocol, cast
 from fastapi import APIRouter, Depends, HTTPException, File, UploadFile, Query, Request
 from sqlalchemy.orm import Session
 from sqlalchemy import func
@@ -24,7 +24,11 @@ from .auth import get_optional_user, get_current_active_user
 import numpy as np
 import cv2  # Should be available if installed
 # Removed strict image quality threshold to allow all standard documents
-_quality_checker = None
+class _QualityChecker(Protocol):
+    def analyze(self, image_np: np.ndarray) -> tuple[bool, list[str]]:
+        ...
+
+_quality_checker: Optional[_QualityChecker] = None
 
 router = APIRouter(prefix="/api/predict", tags=["Predictions"])
 limiter = Limiter(key_func=get_remote_address)
