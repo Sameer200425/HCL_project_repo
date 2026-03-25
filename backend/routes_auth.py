@@ -4,11 +4,18 @@ Authentication Routes
 API endpoints for user authentication.
 """
 
+import os
 from datetime import datetime
-from typing import List, cast
-from fastapi import APIRouter, Depends, HTTPException, status
+from typing import List, Literal, cast
+from fastapi import APIRouter, Depends, HTTPException, Response, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
+from fastapi import Request
+from sqlalchemy import func
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
+from slowapi import Limiter
+from backend.rate_limit import limiter
 
 from .database import get_db
 from .models import User, APIKey, AuditLog
@@ -16,10 +23,49 @@ from .auth import (
     Token, UserCreate, UserLogin, UserResponse, UserUpdate,
     create_user, authenticate_user, get_current_active_user,
     create_access_token, create_refresh_token, decode_token,
-    get_user_by_id, create_api_key, ACCESS_TOKEN_EXPIRE_MINUTES
+    get_user_by_id, create_api_key, ACCESS_TOKEN_EXPIRE_MINUTES,
+    AUTH_COOKIE_NAME, REFRESH_COOKIE_NAME,
+    create_password_reset_token, decode_password_reset_token,
+    get_password_hash, validate_password_strength,
+    IS_PRODUCTION,
 )
 
 router = APIRouter(prefix="/api/auth", tags=["Authentication"])
+
+_raw_samesite = os.getenv("AUTH_COOKIE_SAMESITE", "lax").strip().lower()
+COOKIE_SAMESITE: Literal['lax', 'strict', 'none'] = (
+    cast(Literal['lax', 'strict', 'none'], _raw_samesite)
+    if _raw_samesite in {'lax', 'strict', 'none'}
+    else 'lax'
+)
+COOKIE_SECURE = IS_PRODUCTION or os.getenv("AUTH_COOKIE_SECURE", "false").lower() in {"1", "true", "yes", "on"}
+REFRESH_COOKIE_MAX_AGE = 60 * 60 * 24 * 7
+
+
+def _set_auth_cookies(response: Response, access_token: str, refresh_token: str) -> None:
+    response.set_cookie(
+        key=AUTH_COOKIE_NAME,
+        value=access_token,
+        httponly=True,
+        secure=COOKIE_SECURE,
+        samesite=COOKIE_SAMESITE,
+        max_age=ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+        path="/",
+    )
+    response.set_cookie(
+        key=REFRESH_COOKIE_NAME,
+        value=refresh_token,
+        httponly=True,
+        secure=COOKIE_SECURE,
+        samesite=COOKIE_SAMESITE,
+        max_age=REFRESH_COOKIE_MAX_AGE,
+        path="/",
+    )
+
+
+def _clear_auth_cookies(response: Response) -> None:
+    response.delete_cookie(key=AUTH_COOKIE_NAME, path="/")
+    response.delete_cookie(key=REFRESH_COOKIE_NAME, path="/")
 
 
 @router.post("/register", response_model=UserResponse)
@@ -41,7 +87,8 @@ async def register(user: UserCreate, db: Session = Depends(get_db)):
 
 
 @router.post("/login", response_model=Token)
-async def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
+@limiter.limit("200/minute")
+async def login(request: Request, response: Response, form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
     """Login and get access token."""
     user = authenticate_user(db, form_data.username, form_data.password)
     if not user:
@@ -58,6 +105,7 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = 
     refresh_token = create_refresh_token(
         data={"sub": user.id, "email": user.email}
     )
+    _set_auth_cookies(response, access_token, refresh_token)
     
     # Log login
     log = AuditLog(
@@ -78,7 +126,8 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = 
 
 
 @router.post("/login/json", response_model=Token)
-async def login_json(credentials: UserLogin, db: Session = Depends(get_db)):
+@limiter.limit("200/minute")
+async def login_json(request: Request, response: Response, credentials: UserLogin, db: Session = Depends(get_db)):
     """Login with JSON body (alternative to form)."""
     user = authenticate_user(db, credentials.email, credentials.password)
     if not user:
@@ -93,6 +142,7 @@ async def login_json(credentials: UserLogin, db: Session = Depends(get_db)):
     refresh_token = create_refresh_token(
         data={"sub": user.id, "email": user.email}
     )
+    _set_auth_cookies(response, access_token, refresh_token)
     
     return Token(
         access_token=access_token,
@@ -103,7 +153,7 @@ async def login_json(credentials: UserLogin, db: Session = Depends(get_db)):
 
 
 @router.post("/refresh", response_model=Token)
-async def refresh_token(refresh_token: str, db: Session = Depends(get_db)):
+async def refresh_token(refresh_token: str, response: Response, db: Session = Depends(get_db)):
     """Refresh access token using refresh token."""
     token_data = decode_token(refresh_token)
     if not token_data or not token_data.user_id:
@@ -125,6 +175,7 @@ async def refresh_token(refresh_token: str, db: Session = Depends(get_db)):
     new_refresh_token = create_refresh_token(
         data={"sub": user.id, "email": user.email}
     )
+    _set_auth_cookies(response, access_token, new_refresh_token)
     
     return Token(
         access_token=access_token,
@@ -132,6 +183,13 @@ async def refresh_token(refresh_token: str, db: Session = Depends(get_db)):
         token_type="bearer",
         expires_in=ACCESS_TOKEN_EXPIRE_MINUTES * 60
     )
+
+
+@router.post("/logout")
+async def logout(response: Response):
+    """Clear auth cookies and end the current session."""
+    _clear_auth_cookies(response)
+    return {"message": "Logged out"}
 
 
 @router.get("/me", response_model=UserResponse)
@@ -163,6 +221,61 @@ async def update_me(
 # =============================================================================
 
 from pydantic import BaseModel
+
+
+class ForgotPasswordRequest(BaseModel):
+    email: str
+
+
+class ForgotPasswordResponse(BaseModel):
+    message: str
+    reset_token: str | None = None
+
+
+class ResetPasswordRequest(BaseModel):
+    token: str
+    password: str
+
+
+@router.post("/forgot-password", response_model=ForgotPasswordResponse)
+async def forgot_password(payload: ForgotPasswordRequest, db: Session = Depends(get_db)):
+    """Issue a password reset token (dev mode returns token for testing)."""
+    normalized = payload.email.strip().lower()
+    user = db.query(User).filter(func.lower(User.email) == normalized).first()
+    if not user:
+        return ForgotPasswordResponse(message="If that email exists, reset instructions have been sent.")
+
+    reset_token = create_password_reset_token(cast(int, user.id), cast(str, user.email))
+    if IS_PRODUCTION:
+        return ForgotPasswordResponse(message="If that email exists, reset instructions have been sent.")
+
+    return ForgotPasswordResponse(
+        message="Reset token generated for development/testing.",
+        reset_token=reset_token,
+    )
+
+
+@router.post("/reset-password")
+async def reset_password(payload: ResetPasswordRequest, db: Session = Depends(get_db)):
+    """Reset password using short-lived reset token."""
+    token_data = decode_password_reset_token(payload.token)
+    if not token_data or not token_data.user_id:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid or expired reset token")
+
+    if not validate_password_strength(payload.password):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Password must be at least 8 characters and include a letter and a number.",
+        )
+
+    user = get_user_by_id(db, token_data.user_id)
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+
+    setattr(user, 'hashed_password', get_password_hash(payload.password))
+    setattr(user, 'updated_at', datetime.utcnow())
+    db.commit()
+    return {"message": "Password reset successful"}
 
 class APIKeyCreate(BaseModel):
     name: str

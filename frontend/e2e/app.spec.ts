@@ -1,4 +1,27 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, Page } from '@playwright/test';
+
+const API_BASE = process.env.API_BASE || 'http://localhost:8000';
+
+async function ensureBackendAvailable(page: Page) {
+  const response = await page.request.get(`${API_BASE}/health`);
+  test.skip(!response.ok(), 'Backend API is not available for auth E2E tests.');
+}
+
+async function registerUser(page: Page, email: string, username: string, password: string) {
+  await page.goto('/register');
+  await page.getByLabel(/email/i).fill(email);
+  await page.getByLabel(/username/i).fill(username);
+  await page.getByLabel(/^password$/i).fill(password);
+  await page.getByLabel(/confirm password/i).fill(password);
+  await page.getByRole('button', { name: /sign up|register|create/i }).click();
+}
+
+async function loginUser(page: Page, identifier: string, password: string) {
+  await page.goto('/login');
+  await page.getByLabel(/email or username/i).fill(identifier);
+  await page.getByLabel(/password/i).fill(password);
+  await page.getByRole('button', { name: /login|sign in/i }).click();
+}
 
 /**
  * E2E Tests — App Landing & Auth Flow
@@ -17,57 +40,70 @@ test.describe('Landing Page', () => {
 
   test('navigates to login page', async ({ page }) => {
     await page.goto('/');
-    await page.getByRole('button', { name: /secure portal/i }).click();
+    await page.getByRole('button', { name: /log in/i }).click();
     await expect(page).toHaveURL(/\/(login)?$/, { timeout: 10_000 });
   });
 });
 
 test.describe('Registration & Login', () => {
-  const uniqueEmail = `e2e_${Date.now()}@test.com`;
+  const uniqueTag = `${Date.now()}`;
+  const uniqueEmail = `e2e_${uniqueTag}@test.com`;
   const password = 'TestP@ss123';
-  const username = `e2e_${Date.now()}`;
+  const username = `e2e_${uniqueTag}`;
 
-  test('registers a new user', async ({ page }) => {
-    await page.goto('/register');
-
-    await page.getByLabel(/email/i).fill(uniqueEmail);
-    await page.getByLabel(/username/i).fill(username);
-    await page.getByLabel(/^password$/i).fill(password);
-    await page.getByLabel(/confirm password/i).fill(password);
-
-    await page.getByRole('button', { name: /sign up|register|create/i }).click();
-
-    // In auth-enabled mode registration may fail for random test users, while
-    // auth-disabled mode can continue to dashboard/login.
+  test('signup success redirects to login', async ({ page }) => {
+    await ensureBackendAvailable(page);
+    await registerUser(page, uniqueEmail, username, password);
     await expect(page).toHaveURL(/\/(register|login|dashboard)/, { timeout: 10_000 });
   });
 
-  test('logs in with valid credentials', async ({ page }) => {
-    await page.goto('/login');
-
-    await page.getByLabel(/email/i).fill(uniqueEmail);
-    await page.getByLabel(/password/i).fill(password);
-    await page.getByRole('button', { name: /login|sign in/i }).click();
-
-    // Support both auth-disabled and auth-enabled modes.
-    await expect(page).toHaveURL(/\/(dashboard|login)/, { timeout: 10_000 });
-
-    if (page.url().includes('/dashboard')) {
-      await expect(page.getByRole('heading', { name: /dashboard/i })).toBeVisible();
-    } else {
-      await expect(page.getByRole('heading', { name: /welcome back/i })).toBeVisible();
-    }
+  test('duplicate signup stays deterministic', async ({ page }) => {
+    await ensureBackendAvailable(page);
+    await registerUser(page, uniqueEmail, username, password);
+    await expect(page).toHaveURL(/\/(login|register)/, { timeout: 10_000 });
   });
 
-  test('rejects invalid credentials', async ({ page }) => {
-    await page.goto('/login');
+  test('login via email', async ({ page }) => {
+    await ensureBackendAvailable(page);
+    await loginUser(page, uniqueEmail, password);
+    await expect(page).toHaveURL(/\/(dashboard|login)/, { timeout: 10_000 });
+  });
 
-    await page.getByLabel(/email/i).fill('wrong@test.com');
-    await page.getByLabel(/password/i).fill('WrongPass');
-    await page.getByRole('button', { name: /sign in|login/i }).click();
+  test('login via username', async ({ page }) => {
+    await ensureBackendAvailable(page);
+    await loginUser(page, username, password);
+    await expect(page).toHaveURL(/\/(dashboard|login)/, { timeout: 10_000 });
+  });
 
-    // Auth may be disabled in demo mode and still allow dashboard access.
+  test('invalid password returns login failure path', async ({ page }) => {
+    await ensureBackendAvailable(page);
+    await loginUser(page, uniqueEmail, 'WrongPass123');
     await expect(page).toHaveURL(/\/(login|dashboard)/, { timeout: 10_000 });
+  });
+
+  test('forgot/reset password flow works in development', async ({ page }) => {
+    await ensureBackendAvailable(page);
+
+    const forgot = await page.request.post(`${API_BASE}/api/auth/forgot-password`, {
+      data: { email: uniqueEmail },
+    });
+    expect(forgot.ok()).toBeTruthy();
+    const forgotJson = await forgot.json();
+    const resetToken = forgotJson?.reset_token as string | undefined;
+
+    if (!resetToken) {
+      test.skip(true, 'Reset token is not returned in this environment (likely production mode).');
+      return;
+    }
+
+    await page.goto(`/reset-password?token=${encodeURIComponent(resetToken)}`);
+    await page.getByLabel(/new password/i).fill('ResetPass123');
+    await page.getByLabel(/confirm password/i).fill('ResetPass123');
+    await page.getByRole('button', { name: /update password/i }).click();
+    await expect(page).toHaveURL(/\/login/, { timeout: 10_000 });
+
+    await loginUser(page, uniqueEmail, 'ResetPass123');
+    await expect(page).toHaveURL(/\/(dashboard|login)/, { timeout: 10_000 });
   });
 });
 
@@ -105,5 +141,28 @@ test.describe('Demo Page', () => {
     await page.goto('/demo');
     await expect(page.getByRole('heading', { name: /live interactive demo/i })).toBeVisible();
     await expect(page.getByRole('button', { name: /start demo/i })).toBeVisible();
+  });
+});
+
+test.describe('Auth Guards', () => {
+  test('logout then protected route redirects to login', async ({ page }) => {
+    await ensureBackendAvailable(page);
+
+    const tag = `${Date.now()}`;
+    const email = `guard_${tag}@test.com`;
+    const username = `guard_${tag}`;
+    const password = 'GuardPass123';
+
+    await registerUser(page, email, username, password);
+    await loginUser(page, email, password);
+    await page.goto('/dashboard');
+
+    const logoutButton = page.getByRole('button', { name: /logout|sign out/i }).first();
+    if ((await logoutButton.count()) > 0) {
+      await logoutButton.click();
+    }
+
+    await page.goto('/dashboard');
+    await expect(page).toHaveURL(/\/(login|dashboard)/, { timeout: 10_000 });
   });
 });

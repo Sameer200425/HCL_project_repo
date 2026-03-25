@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useCallback, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import {
   Upload,
@@ -45,6 +45,7 @@ const riskStyles: Record<string, string> = {
 
 export default function PredictPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { user, token, logout, authDisabled } = useAuthStore();
   const { predict, isLoading } = usePredictionStore();
   const { toast } = useToast();
@@ -65,6 +66,12 @@ export default function PredictPage() {
       router.push('/login');
     }
   }, [token, authDisabled, router]);
+
+  useEffect(() => {
+    const mode = searchParams.get('mode');
+    if (mode === 'camera') setInputMode('camera');
+    if (mode === 'upload') setInputMode('upload');
+  }, [searchParams]);
 
   const handleFile = useCallback((file: File) => {
     if (!file.type.startsWith('image/')) {

@@ -183,13 +183,15 @@ export default function MonitoringPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
+    <div className="min-h-screen bg-[#0B1220] text-slate-200 relative overflow-hidden">
+      <div className="pointer-events-none absolute -top-40 -left-40 h-[28rem] w-[28rem] rounded-full bg-cyan-500/15 blur-3xl" />
+      <div className="pointer-events-none absolute -bottom-40 -right-40 h-[30rem] w-[30rem] rounded-full bg-emerald-500/10 blur-3xl" />
       {/* Header */}
-      <header className="border-b border-slate-700 bg-slate-900/50 backdrop-blur">
+      <header className="border-b border-slate-800 bg-[#0f172a]/90 backdrop-blur-xl relative z-10">
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="p-2 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg">
+              <div className="p-2 bg-gradient-to-br from-cyan-400 to-emerald-400 rounded-lg shadow-[0_0_18px_rgba(52,211,153,0.35)]">
                 <Activity className="w-6 h-6 text-white" />
               </div>
               <div>
@@ -222,7 +224,7 @@ export default function MonitoringPage() {
       </header>
 
       {/* Main Content */}
-      <main className="container mx-auto px-4 py-8">
+      <main className="container mx-auto px-4 py-8 relative z-10">
         {/* Actions & Status */}
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-4">
@@ -262,7 +264,7 @@ export default function MonitoringPage() {
 
         {loading ? (
           <div className="flex items-center justify-center py-20">
-            <RefreshCw className="w-8 h-8 text-blue-500 animate-spin" />
+            <RefreshCw className="w-8 h-8 text-emerald-500 animate-spin" />
           </div>
         ) : (
           <>

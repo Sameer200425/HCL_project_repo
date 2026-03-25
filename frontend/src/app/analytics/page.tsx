@@ -143,19 +143,23 @@ export default function AnalyticsPage() {
   const avgInference = totalPredictions > 0
     ? predictions.reduce((s, p) => s + p.inference_time_ms, 0) / totalPredictions
     : 0;
+  const dashboardCardClass = 'bg-[#0f172a]/90 border-slate-800 text-slate-100 shadow-xl';
+  const mutedTextClass = 'text-slate-400';
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600" />
+      <div className="min-h-screen bg-[#0B1220] flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-500" />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-h-screen bg-[#0B1220] text-slate-200 relative overflow-hidden">
+      <div className="pointer-events-none absolute -top-40 -left-40 h-[28rem] w-[28rem] rounded-full bg-cyan-500/15 blur-3xl" />
+      <div className="pointer-events-none absolute -bottom-40 -right-40 h-[30rem] w-[30rem] rounded-full bg-emerald-500/10 blur-3xl" />
       {/* Header */}
-      <header className="bg-white border-b">
+      <header className="bg-[#0f172a]/90 backdrop-blur-xl border-b border-slate-800 relative z-10">
         <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
           <Link href="/dashboard" className="flex items-center gap-2">
             
@@ -167,68 +171,68 @@ export default function AnalyticsPage() {
             
             
             
-            <div className="flex items-center gap-2 ml-4 pl-4 border-l">
-              <User className="h-4 w-4 text-muted-foreground" />
-              <span className="text-sm">{user?.username || 'User'}</span>
-              <Button variant="ghost" size="sm" onClick={handleLogout}><LogOut className="h-4 w-4" /></Button>
+            <div className="flex items-center gap-2 ml-4 pl-4 border-l border-slate-800">
+              <User className="h-4 w-4 text-slate-400" />
+              <span className="text-sm text-slate-200">{user?.username || 'User'}</span>
+              <Button variant="ghost" size="sm" onClick={handleLogout} className="text-slate-300 hover:text-white hover:bg-slate-800"><LogOut className="h-4 w-4" /></Button>
             </div>
           </nav>
         </div>
       </header>
 
       {/* Main */}
-      <main className="max-w-7xl mx-auto px-4 py-8">
+      <main className="max-w-7xl mx-auto px-4 py-8 relative z-10">
         <div className="flex items-center justify-between mb-8">
           <div>
-            <h1 className="text-3xl font-bold">Analytics</h1>
-            <p className="text-muted-foreground">Detailed fraud detection analytics and insights</p>
+            <h1 className="text-3xl font-bold text-white">Analytics</h1>
+            <p className="text-slate-400">Detailed fraud detection analytics and insights</p>
           </div>
         </div>
 
         {/* KPI Row */}
         <div className="grid md:grid-cols-4 gap-6 mb-8">
-          <Card>
+          <Card className={dashboardCardClass}>
             <CardHeader className="pb-2">
-              <CardDescription>Total Predictions</CardDescription>
+              <CardDescription className={mutedTextClass}>Total Predictions</CardDescription>
               <CardTitle className="text-3xl">{totalPredictions}</CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-xs text-muted-foreground flex items-center gap-1">
+              <p className="text-xs text-slate-400 flex items-center gap-1">
                 <ArrowUpRight className="h-3 w-3 text-green-500" /> All time
               </p>
             </CardContent>
           </Card>
-          <Card>
+          <Card className={dashboardCardClass}>
             <CardHeader className="pb-2">
-              <CardDescription>Fraud Rate</CardDescription>
-              <CardTitle className="text-3xl text-red-600">
+              <CardDescription className={mutedTextClass}>Fraud Rate</CardDescription>
+              <CardTitle className="text-3xl text-red-400">
                 {totalPredictions > 0 ? ((fraudCount / totalPredictions) * 100).toFixed(1) : '0'}%
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-xs text-muted-foreground flex items-center gap-1">
+              <p className="text-xs text-slate-400 flex items-center gap-1">
                 <AlertTriangle className="h-3 w-3 text-red-500" /> {fraudCount} flagged
               </p>
             </CardContent>
           </Card>
-          <Card>
+          <Card className={dashboardCardClass}>
             <CardHeader className="pb-2">
-              <CardDescription>Avg Confidence</CardDescription>
-              <CardTitle className="text-3xl text-blue-600">{(avgConfidence * 100).toFixed(1)}%</CardTitle>
+              <CardDescription className={mutedTextClass}>Avg Confidence</CardDescription>
+              <CardTitle className="text-3xl text-cyan-400">{(avgConfidence * 100).toFixed(1)}%</CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-xs text-muted-foreground flex items-center gap-1">
+              <p className="text-xs text-slate-400 flex items-center gap-1">
                 <CheckCircle className="h-3 w-3 text-blue-500" /> Across all models
               </p>
             </CardContent>
           </Card>
-          <Card>
+          <Card className={dashboardCardClass}>
             <CardHeader className="pb-2">
-              <CardDescription>Avg Inference</CardDescription>
-              <CardTitle className="text-3xl text-purple-600">{avgInference.toFixed(1)}ms</CardTitle>
+              <CardDescription className={mutedTextClass}>Avg Inference</CardDescription>
+              <CardTitle className="text-3xl text-emerald-400">{avgInference.toFixed(1)}ms</CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-xs text-muted-foreground flex items-center gap-1">
+              <p className="text-xs text-slate-400 flex items-center gap-1">
                 <Activity className="h-3 w-3 text-purple-500" /> Response time
               </p>
             </CardContent>
@@ -237,7 +241,7 @@ export default function AnalyticsPage() {
 
         {/* Tabbed Charts */}
         <Tabs defaultValue="trends" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-5">
+          <TabsList className="grid w-full grid-cols-5 bg-slate-900/70 border border-slate-800">
             <TabsTrigger value="trends">Trends</TabsTrigger>
             <TabsTrigger value="classes">Classes</TabsTrigger>
             <TabsTrigger value="risk">Risk</TabsTrigger>

@@ -5,6 +5,8 @@
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 const AUTH_DISABLED = process.env.NEXT_PUBLIC_AUTH_DISABLED !== 'false';
 const PUBLIC_TOKEN = 'public-access';
+const COOKIE_SESSION_HINT = 'cookie-session';
+const USE_COOKIE_AUTH = !AUTH_DISABLED;
 
 interface ApiResponse<T> {
   data?: T;
@@ -24,6 +26,8 @@ class ApiClient {
     if (typeof window === 'undefined') return;
 
     if (this.token) {
+      // Keep bearer token fallback even in cookie mode to avoid false auth failures
+      // when browser cookie policies block cross-site dev requests.
       localStorage.setItem('token', this.token);
     } else {
       localStorage.removeItem('token');
@@ -36,6 +40,9 @@ class ApiClient {
     }
     if (!this.token && typeof window !== 'undefined') {
       this.token = localStorage.getItem('token');
+    }
+    if (USE_COOKIE_AUTH && this.token === COOKIE_SESSION_HINT) {
+      return null;
     }
     return this.token;
   }
@@ -63,6 +70,7 @@ class ApiClient {
       const response = await fetch(url, {
         ...options,
         headers,
+        credentials: 'include',
       });
 
       if (!response.ok) {
@@ -85,7 +93,7 @@ class ApiClient {
     });
   }
 
-  async login(email: string, password: string) {
+  async login(identifier: string, password: string) {
     return this.request<{
       access_token: string;
       refresh_token: string;
@@ -93,7 +101,27 @@ class ApiClient {
       expires_in: number;
     }>('/api/auth/login/json', {
       method: 'POST',
-      body: JSON.stringify({ email, password }),
+      body: JSON.stringify({ email: identifier, password }),
+    });
+  }
+
+  async logout() {
+    return this.request<{ message: string }>('/api/auth/logout', {
+      method: 'POST',
+    });
+  }
+
+  async forgotPassword(email: string) {
+    return this.request<{ message: string; reset_token?: string }>('/api/auth/forgot-password', {
+      method: 'POST',
+      body: JSON.stringify({ email }),
+    });
+  }
+
+  async resetPassword(token: string, password: string) {
+    return this.request<{ message: string }>('/api/auth/reset-password', {
+      method: 'POST',
+      body: JSON.stringify({ token, password }),
     });
   }
 

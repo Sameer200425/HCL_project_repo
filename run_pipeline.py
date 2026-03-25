@@ -16,6 +16,7 @@ import sys
 import time
 import json
 from pathlib import Path
+from typing import Any, Dict, List
 
 # Ensure project root is on path
 PROJECT_ROOT = Path(__file__).parent
@@ -66,8 +67,8 @@ def warm_up_module_usage() -> None:
     try:
         from module_usage_manifest import touch_all_modules
 
-        summary = touch_all_modules()
-        failed = summary.get("failed", [])
+        summary: Dict[str, Any] = touch_all_modules()
+        failed: List[Dict[str, Any]] = summary.get("failed", [])
         print(
             f"[module-usage] loaded={summary.get('loaded', 0)}/{summary.get('total', 0)} "
             f"failed={len(failed)}"

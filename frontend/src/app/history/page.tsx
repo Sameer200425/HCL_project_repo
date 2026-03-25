@@ -68,6 +68,8 @@ export default function HistoryPage() {
   );
 
   const riskFilters = ['all', 'low', 'medium', 'high', 'critical'];
+  const dashboardCardClass = 'bg-[#0f172a]/90 border-slate-800 text-slate-100 shadow-xl';
+  const mutedTextClass = 'text-slate-400';
 
   const formatDate = (dateStr: string) => {
     return new Date(dateStr).toLocaleDateString('en-US', {
@@ -80,9 +82,11 @@ export default function HistoryPage() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-h-screen bg-[#0B1220] text-slate-200 relative overflow-hidden">
+      <div className="pointer-events-none absolute -top-40 -left-40 h-[28rem] w-[28rem] rounded-full bg-cyan-500/15 blur-3xl" />
+      <div className="pointer-events-none absolute -bottom-40 -right-40 h-[30rem] w-[30rem] rounded-full bg-emerald-500/10 blur-3xl" />
       {/* Header */}
-      <header className="bg-white border-b">
+      <header className="bg-[#0f172a]/90 backdrop-blur-xl border-b border-slate-800 relative z-10">
         <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
           <Link href="/dashboard" className="flex items-center gap-2">
             
@@ -92,10 +96,10 @@ export default function HistoryPage() {
           <nav className="flex items-center gap-4">
             
             
-            <div className="flex items-center gap-2 ml-4 pl-4 border-l">
-              <User className="h-4 w-4 text-muted-foreground" />
-              <span className="text-sm">{user?.username || 'User'}</span>
-              <Button variant="ghost" size="sm" onClick={handleLogout}>
+            <div className="flex items-center gap-2 ml-4 pl-4 border-l border-slate-800">
+              <User className="h-4 w-4 text-slate-400" />
+              <span className="text-sm text-slate-200">{user?.username || 'User'}</span>
+              <Button variant="ghost" size="sm" onClick={handleLogout} className="text-slate-300 hover:text-white hover:bg-slate-800">
                 <LogOut className="h-4 w-4" />
               </Button>
             </div>
@@ -104,19 +108,19 @@ export default function HistoryPage() {
       </header>
 
       {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 py-8">
+      <main className="max-w-7xl mx-auto px-4 py-8 relative z-10">
         <div className="flex items-center justify-between mb-8">
-          <h1 className="text-3xl font-bold">Prediction History</h1>
-          <p className="text-muted-foreground">
+          <h1 className="text-3xl font-bold text-white">Prediction History</h1>
+          <p className="text-slate-400">
             {filteredPredictions.length} total predictions
           </p>
         </div>
 
         {/* Filters */}
-        <Card className="mb-6">
+        <Card className={`mb-6 ${dashboardCardClass}`}>
           <CardContent className="pt-4">
             <div className="flex items-center gap-4">
-              <span className="text-sm font-medium">Filter by risk:</span>
+              <span className="text-sm font-medium text-slate-200">Filter by risk:</span>
               <div className="flex gap-2">
                 {riskFilters.map((risk) => (
                   <Button
@@ -142,24 +146,24 @@ export default function HistoryPage() {
         </Card>
 
         {/* Predictions List */}
-        <Card>
+        <Card className={dashboardCardClass}>
           <CardHeader>
             <CardTitle>Scan Results</CardTitle>
-            <CardDescription>
+            <CardDescription className={mutedTextClass}>
               Your document analysis history
             </CardDescription>
           </CardHeader>
           <CardContent>
             {isLoading ? (
               <div className="flex items-center justify-center py-12">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-500"></div>
               </div>
             ) : paginatedPredictions.length === 0 ? (
-              <div className="text-center py-12 text-muted-foreground">
+              <div className="text-center py-12 text-slate-400">
                 <FileSearch className="h-12 w-12 mx-auto mb-4 opacity-50" />
                 <p>No predictions found.</p>
                 <Link href="/predict">
-                  <Button className="mt-4">
+                  <Button className="mt-4 bg-emerald-500 hover:bg-emerald-600">
                     <Upload className="h-4 w-4 mr-2" /> Analyze Document
                   </Button>
                 </Link>
@@ -170,7 +174,7 @@ export default function HistoryPage() {
                   {paginatedPredictions.map((pred) => (
                     <div 
                       key={pred.id} 
-                      className="flex items-center justify-between p-4 bg-slate-50 rounded-lg hover:bg-slate-100 transition-colors"
+                      className="flex items-center justify-between p-4 bg-slate-900/60 border border-slate-800 rounded-lg hover:bg-slate-900 transition-colors"
                     >
                       <div className="flex items-center gap-4">
                         <div className={`p-2 rounded-full ${
@@ -187,7 +191,7 @@ export default function HistoryPage() {
                         </div>
                         <div>
                           <p className="font-medium">{pred.predicted_class}</p>
-                          <p className="text-sm text-muted-foreground">
+                          <p className="text-sm text-slate-400">
                             {pred.model_name} • {formatDate(pred.created_at)}
                           </p>
                         </div>
@@ -195,7 +199,7 @@ export default function HistoryPage() {
                       <div className="flex items-center gap-4">
                         <div className="text-right">
                           <p className="font-medium">{(pred.confidence * 100).toFixed(1)}%</p>
-                          <p className="text-sm text-muted-foreground capitalize">
+                          <p className="text-sm text-slate-400 capitalize">
                             {pred.risk_level} risk
                           </p>
                         </div>
@@ -203,7 +207,7 @@ export default function HistoryPage() {
                           variant="ghost"
                           size="sm"
                           onClick={() => handleDelete(pred.id)}
-                          className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                          className="text-red-400 hover:text-red-300 hover:bg-red-900/30"
                         >
                           <Trash2 className="h-4 w-4" />
                         </Button>
@@ -220,10 +224,11 @@ export default function HistoryPage() {
                       size="sm"
                       onClick={() => setPage(p => Math.max(1, p - 1))}
                       disabled={page === 1}
+                      className="border-slate-700 text-slate-200 hover:bg-slate-800"
                     >
                       <ChevronLeft className="h-4 w-4" />
                     </Button>
-                    <span className="text-sm">
+                    <span className="text-sm text-slate-300">
                       Page {page} of {totalPages}
                     </span>
                     <Button
@@ -231,6 +236,7 @@ export default function HistoryPage() {
                       size="sm"
                       onClick={() => setPage(p => Math.min(totalPages, p + 1))}
                       disabled={page === totalPages}
+                      className="border-slate-700 text-slate-200 hover:bg-slate-800"
                     >
                       <ChevronRight className="h-4 w-4" />
                     </Button>

@@ -36,6 +36,7 @@ from .routes_predict import router as predict_router, set_model_manager
 from .routes_analytics import router as analytics_router
 from .routes_upload import router as upload_router
 from .routes_monitoring import router as monitoring_router
+from .rate_limit import register_rate_limit
 
 # Import model manager from fast inference module (with fallback)
 try:
@@ -98,17 +99,12 @@ def _parse_cors_origins() -> list[str]:
             "http://localhost:5173",  # Vite dev
             "http://127.0.0.1:5173",
         ]
-        if not IS_PRODUCTION:
-            origins.append("*")
 
     if IS_PRODUCTION and "*" in origins:
         raise RuntimeError(
             "CORS_ORIGINS includes '*' in production, which is not allowed. "
             "Set explicit trusted origins."
         )
-
-    if not IS_PRODUCTION and "*" in origins:
-        print("⚠️ CORS wildcard '*' enabled in development mode")
 
     return origins
 
@@ -171,6 +167,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Register rate limiting
+register_rate_limit(app)
 
 
 # =============================================================================

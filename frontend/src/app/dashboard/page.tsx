@@ -1,10 +1,11 @@
 'use client';
 
 import { useEffect, useState, useMemo } from 'react';
+import { useRequireAuth } from '@/hooks/use-require-auth';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { 
-  Shield, BarChart3, Upload, History, LogOut, User,
+  Shield, BarChart3, Upload, History, LogOut, User, Home, Camera,
   TrendingUp, AlertTriangle, CheckCircle, FileSearch, Activity
 } from 'lucide-react';
 import {
@@ -59,8 +60,10 @@ function buildTrendData(predictions: Prediction[]) {
 }
 
 export default function DashboardPage() {
+  useRequireAuth();
+
   const router = useRouter();
-  const { user, token, logout, loadUser, authDisabled } = useAuthStore();
+  const { user, logout, loadUser } = useAuthStore();
   const { fetchHistory, fetchStats, predictions } = usePredictionStore();
   const { toast } = useToast();
   
@@ -74,17 +77,10 @@ export default function DashboardPage() {
 
   useEffect(() => {
     if (!mounted) return;
-    
     const init = async () => {
       try {
-        if (!token && !authDisabled) {
-          router.push('/login');
-          return;
-        }
-      
         await loadUser();
         await fetchHistory();
-      
         // Fetch stats
         try {
           const result = await fetchStats();
@@ -100,9 +96,8 @@ export default function DashboardPage() {
         setIsLoading(false);
       }
     };
-    
     init();
-  }, [mounted, token, authDisabled, router, loadUser, fetchHistory, fetchStats]);
+  }, [mounted, loadUser, fetchHistory, fetchStats]);
 
   const handleLogout = () => {
     logout();
@@ -130,18 +125,23 @@ export default function DashboardPage() {
     ? ((stats.fraud_detected / stats.total_predictions) * 100).toFixed(1) 
     : '0';
 
+  const dashboardCardClass = 'bg-[#0f172a]/90 border-slate-800 text-slate-100 shadow-xl';
+  const mutedTextClass = 'text-slate-400';
+
   if (!mounted || isLoading) {
     return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      <div className="min-h-screen bg-[#0B1220] flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-500"></div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-h-screen bg-[#0B1220] text-slate-200 relative overflow-hidden">
+      <div className="pointer-events-none absolute -top-40 -left-40 h-[28rem] w-[28rem] rounded-full bg-cyan-500/15 blur-3xl" />
+      <div className="pointer-events-none absolute -bottom-40 -right-40 h-[30rem] w-[30rem] rounded-full bg-emerald-500/10 blur-3xl" />
       {/* Header */}
-      <header className="bg-white border-b">
+      <header className="bg-[#0f172a]/90 backdrop-blur-xl border-b border-slate-800 relative z-10">
         <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
           <Link href="/dashboard" className="flex items-center gap-2">
             
@@ -149,13 +149,15 @@ export default function DashboardPage() {
           </Link>
           
           <nav className="flex items-center gap-4">
-            
-            
-            
-            <div className="flex items-center gap-2 ml-4 pl-4 border-l">
-              <User className="h-4 w-4 text-muted-foreground" />
-              <span className="text-sm">{user?.username || 'User'}</span>
-              <Button variant="ghost" size="sm" onClick={handleLogout}>
+            <Link href="/">
+              <Button variant="outline" size="sm" className="border-slate-700 text-slate-200 hover:bg-slate-800">
+                <Home className="h-4 w-4 mr-2" /> Home
+              </Button>
+            </Link>
+            <div className="flex items-center gap-2 ml-4 pl-4 border-l border-slate-800">
+              <User className="h-4 w-4 text-slate-400" />
+              <span className="text-sm text-slate-200">{user?.username || 'User'}</span>
+              <Button variant="ghost" size="sm" onClick={handleLogout} className="text-slate-300 hover:text-white hover:bg-slate-800">
                 <LogOut className="h-4 w-4" />
               </Button>
             </div>
@@ -164,46 +166,47 @@ export default function DashboardPage() {
       </header>
 
       {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 py-8">
-        <h1 className="text-3xl font-bold mb-8">Dashboard</h1>
+      <main className="max-w-7xl mx-auto px-4 py-8 relative z-10">
+        <h1 className="text-3xl font-bold mb-2 text-white">Dashboard</h1>
+        <p className="text-slate-400 mb-8">Welcome, {user?.username || 'User'}.</p>
         
         {/* Stats Cards */}
         <div className="grid md:grid-cols-4 gap-6 mb-8">
-          <Card>
+          <Card className={dashboardCardClass}>
             <CardHeader className="pb-2">
-              <CardDescription>Total Scans</CardDescription>
+              <CardDescription className={mutedTextClass}>Total Scans</CardDescription>
               <CardTitle className="text-3xl flex items-center gap-2">
-                <FileSearch className="h-6 w-6 text-blue-500" />
+                <FileSearch className="h-6 w-6 text-cyan-400" />
                 {stats?.total_predictions || 0}
               </CardTitle>
             </CardHeader>
           </Card>
           
-          <Card>
+          <Card className={dashboardCardClass}>
             <CardHeader className="pb-2">
-              <CardDescription>Fraud Detected</CardDescription>
-              <CardTitle className="text-3xl flex items-center gap-2 text-red-600">
+              <CardDescription className={mutedTextClass}>Fraud Detected</CardDescription>
+              <CardTitle className="text-3xl flex items-center gap-2 text-red-400">
                 <AlertTriangle className="h-6 w-6" />
                 {stats?.fraud_detected || 0}
               </CardTitle>
             </CardHeader>
           </Card>
           
-          <Card>
+          <Card className={dashboardCardClass}>
             <CardHeader className="pb-2">
-              <CardDescription>Genuine Documents</CardDescription>
-              <CardTitle className="text-3xl flex items-center gap-2 text-green-600">
+              <CardDescription className={mutedTextClass}>Genuine Documents</CardDescription>
+              <CardTitle className="text-3xl flex items-center gap-2 text-emerald-400">
                 <CheckCircle className="h-6 w-6" />
                 {stats?.genuine_documents || 0}
               </CardTitle>
             </CardHeader>
           </Card>
           
-          <Card>
+          <Card className={dashboardCardClass}>
             <CardHeader className="pb-2">
-              <CardDescription>Avg Confidence</CardDescription>
+              <CardDescription className={mutedTextClass}>Avg Confidence</CardDescription>
               <CardTitle className="text-3xl flex items-center gap-2">
-                <TrendingUp className="h-6 w-6 text-purple-500" />
+                <TrendingUp className="h-6 w-6 text-cyan-400" />
                 {stats?.avg_confidence ? `${(stats.avg_confidence * 100).toFixed(0)}%` : 'N/A'}
               </CardTitle>
             </CardHeader>
@@ -214,24 +217,24 @@ export default function DashboardPage() {
         {predictions.length > 0 && (
           <div className="grid md:grid-cols-2 gap-6 mb-8">
             {/* Fraud Trend Line Chart */}
-            <Card className="md:col-span-2">
+            <Card className={`md:col-span-2 ${dashboardCardClass}`}>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
-                  <TrendingUp className="h-5 w-5 text-blue-500" /> Prediction Trends
+                  <TrendingUp className="h-5 w-5 text-cyan-400" /> Prediction Trends
                 </CardTitle>
-                <CardDescription>Daily prediction volume &amp; fraud detections</CardDescription>
+                <CardDescription className={mutedTextClass}>Daily prediction volume &amp; fraud detections</CardDescription>
               </CardHeader>
               <CardContent>
                 <ResponsiveContainer width="100%" height={280}>
                   <LineChart data={trendData}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="date" fontSize={12} />
-                    <YAxis allowDecimals={false} fontSize={12} />
+                    <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
+                    <XAxis dataKey="date" tick={{ fill: '#94a3b8', fontSize: 12 }} axisLine={{ stroke: '#334155' }} tickLine={{ stroke: '#334155' }} />
+                    <YAxis allowDecimals={false} tick={{ fill: '#94a3b8', fontSize: 12 }} axisLine={{ stroke: '#334155' }} tickLine={{ stroke: '#334155' }} />
                     <Tooltip />
                     <Legend />
-                    <Line type="monotone" dataKey="total" stroke="#3b82f6" strokeWidth={2} name="Total" />
+                    <Line type="monotone" dataKey="total" stroke="#22d3ee" strokeWidth={2} name="Total" />
                     <Line type="monotone" dataKey="fraud" stroke="#ef4444" strokeWidth={2} name="Fraud" />
-                    <Line type="monotone" dataKey="genuine" stroke="#22c55e" strokeWidth={2} name="Genuine" />
+                    <Line type="monotone" dataKey="genuine" stroke="#10b981" strokeWidth={2} name="Genuine" />
                   </LineChart>
                 </ResponsiveContainer>
               </CardContent>
@@ -239,10 +242,10 @@ export default function DashboardPage() {
 
             {/* Class Distribution Pie Chart */}
             {classData.length > 0 && (
-              <Card>
+              <Card className={dashboardCardClass}>
                 <CardHeader>
                   <CardTitle>Class Distribution</CardTitle>
-                  <CardDescription>Breakdown by predicted class</CardDescription>
+                  <CardDescription className={mutedTextClass}>Breakdown by predicted class</CardDescription>
                 </CardHeader>
                 <CardContent>
                   <ResponsiveContainer width="100%" height={260}>
@@ -270,19 +273,19 @@ export default function DashboardPage() {
 
             {/* Model Usage Bar Chart */}
             {modelData.length > 0 && (
-              <Card>
+              <Card className={dashboardCardClass}>
                 <CardHeader>
                   <CardTitle>Model Usage</CardTitle>
-                  <CardDescription>Predictions per model</CardDescription>
+                  <CardDescription className={mutedTextClass}>Predictions per model</CardDescription>
                 </CardHeader>
                 <CardContent>
                   <ResponsiveContainer width="100%" height={260}>
                     <BarChart data={modelData}>
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="name" fontSize={12} />
-                      <YAxis allowDecimals={false} fontSize={12} />
+                      <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
+                      <XAxis dataKey="name" tick={{ fill: '#94a3b8', fontSize: 12 }} axisLine={{ stroke: '#334155' }} tickLine={{ stroke: '#334155' }} />
+                      <YAxis allowDecimals={false} tick={{ fill: '#94a3b8', fontSize: 12 }} axisLine={{ stroke: '#334155' }} tickLine={{ stroke: '#334155' }} />
                       <Tooltip />
-                      <Bar dataKey="count" fill="#6366f1" radius={[4, 4, 0, 0]} name="Predictions" />
+                      <Bar dataKey="count" fill="#22d3ee" radius={[4, 4, 0, 0]} name="Predictions" />
                     </BarChart>
                   </ResponsiveContainer>
                 </CardContent>
@@ -293,7 +296,7 @@ export default function DashboardPage() {
 
         {/* Risk Distribution & Quick Actions */}
         <div className="grid md:grid-cols-2 gap-6 mb-8">
-          <Card>
+          <Card className={dashboardCardClass}>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <BarChart3 className="h-5 w-5" /> Risk Distribution
@@ -303,60 +306,66 @@ export default function DashboardPage() {
               <div>
                 <div className="flex justify-between text-sm mb-1">
                   <span>Low Risk</span>
-                  <span className="text-green-600">{stats?.by_risk_level?.low || 0}</span>
+                  <span className="text-emerald-400">{stats?.by_risk_level?.low || 0}</span>
                 </div>
                 <Progress 
                   value={stats?.total_predictions ? ((stats.by_risk_level?.low || 0) / stats.total_predictions) * 100 : 0} 
-                  className="bg-green-100 [&>div]:bg-green-500"
+                  className="bg-emerald-900/30 [&>div]:bg-emerald-500"
                 />
               </div>
               <div>
                 <div className="flex justify-between text-sm mb-1">
                   <span>Medium Risk</span>
-                  <span className="text-yellow-600">{stats?.by_risk_level?.medium || 0}</span>
+                  <span className="text-yellow-400">{stats?.by_risk_level?.medium || 0}</span>
                 </div>
                 <Progress 
                   value={stats?.total_predictions ? ((stats.by_risk_level?.medium || 0) / stats.total_predictions) * 100 : 0} 
-                  className="bg-yellow-100 [&>div]:bg-yellow-500"
+                  className="bg-yellow-900/30 [&>div]:bg-yellow-500"
                 />
               </div>
               <div>
                 <div className="flex justify-between text-sm mb-1">
                   <span>High Risk</span>
-                  <span className="text-orange-600">{stats?.by_risk_level?.high || 0}</span>
+                  <span className="text-orange-400">{stats?.by_risk_level?.high || 0}</span>
                 </div>
                 <Progress 
                   value={stats?.total_predictions ? ((stats.by_risk_level?.high || 0) / stats.total_predictions) * 100 : 0} 
-                  className="bg-orange-100 [&>div]:bg-orange-500"
+                  className="bg-orange-900/30 [&>div]:bg-orange-500"
                 />
               </div>
               <div>
                 <div className="flex justify-between text-sm mb-1">
                   <span>Critical</span>
-                  <span className="text-red-600">{stats?.by_risk_level?.critical || 0}</span>
+                  <span className="text-red-400">{stats?.by_risk_level?.critical || 0}</span>
                 </div>
                 <Progress 
                   value={stats?.total_predictions ? ((stats.by_risk_level?.critical || 0) / stats.total_predictions) * 100 : 0} 
-                  className="bg-red-100 [&>div]:bg-red-500"
+                  className="bg-red-900/30 [&>div]:bg-red-500"
                 />
               </div>
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className={dashboardCardClass}>
             <CardHeader>
               <CardTitle>Quick Actions</CardTitle>
-              <CardDescription>Get started with document analysis</CardDescription>
+              <CardDescription className={mutedTextClass}>Analyze extra photos and run scanning process</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <Link href="/predict" className="block">
-                <Button className="w-full justify-start h-16 text-lg" size="lg">
+                <Button className="w-full justify-start h-16 text-lg bg-emerald-500 hover:bg-emerald-600" size="lg">
                   <Upload className="h-6 w-6 mr-3" />
-                  Analyze New Document
+                  Analyze Extra Photos
+                </Button>
+              </Link>
+              <Link href="/predict?mode=camera" className="block">
+                <Button variant="outline" className="w-full justify-start h-16 text-lg border-slate-700 text-slate-200 hover:bg-slate-800" size="lg">
+                  <Camera className="h-6 w-6 mr-3" />
+                  Start Scanning Process
                 </Button>
               </Link>
               <Link href="/history" className="block">
-                <Button variant="outline" className="w-full justify-start h-16 text-lg" size="lg">
+                <Button variant="outline" className="w-full justify-start h-16 text-lg border-slate-700 text-slate-200 hover:bg-slate-800" size="lg">
                   <History className="h-6 w-6 mr-3" />
                   View Scan History
                 </Button>
@@ -366,18 +375,18 @@ export default function DashboardPage() {
         </div>
 
         {/* Recent Predictions */}
-        <Card>
+        <Card className={dashboardCardClass}>
           <CardHeader>
             <CardTitle>Recent Predictions</CardTitle>
-            <CardDescription>Your latest document analyses</CardDescription>
+            <CardDescription className={mutedTextClass}>Your latest document analyses</CardDescription>
           </CardHeader>
           <CardContent>
             {predictions.length === 0 ? (
-              <div className="text-center py-8 text-muted-foreground">
+              <div className="text-center py-8 text-slate-400">
                 <FileSearch className="h-12 w-12 mx-auto mb-4 opacity-50" />
                 <p>No predictions yet. Upload a document to get started.</p>
                 <Link href="/predict">
-                  <Button className="mt-4">
+                  <Button className="mt-4 bg-emerald-500 hover:bg-emerald-600">
                     <Upload className="h-4 w-4 mr-2" /> Analyze Document
                   </Button>
                 </Link>
@@ -387,7 +396,7 @@ export default function DashboardPage() {
                 {predictions.slice(0, 5).map((pred) => (
                   <div 
                     key={pred.id} 
-                    className="flex items-center justify-between p-4 bg-slate-50 rounded-lg"
+                    className="flex items-center justify-between p-4 bg-slate-900/60 border border-slate-800 rounded-lg"
                   >
                     <div className="flex items-center gap-4">
                       <div className={`p-2 rounded-full ${
@@ -404,12 +413,12 @@ export default function DashboardPage() {
                       </div>
                       <div>
                         <p className="font-medium">{pred.predicted_class}</p>
-                        <p className="text-sm text-muted-foreground">{pred.model_name}</p>
+                        <p className="text-sm text-slate-400">{pred.model_name}</p>
                       </div>
                     </div>
                     <div className="text-right">
                       <p className="font-medium">{(pred.confidence * 100).toFixed(1)}%</p>
-                      <p className="text-sm text-muted-foreground capitalize">{pred.risk_level} risk</p>
+                      <p className="text-sm text-slate-400 capitalize">{pred.risk_level} risk</p>
                     </div>
                   </div>
                 ))}

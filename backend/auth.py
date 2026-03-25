@@ -7,13 +7,15 @@ JWT-based authentication with password hashing.
 import os
 import secrets
 import logging
+import re
 from datetime import datetime, timedelta
 from typing import Optional, cast
 from passlib.context import CryptContext
 from jose import JWTError, jwt
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordBearer, APIKeyHeader
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 from pydantic import BaseModel, EmailStr
 
 from .database import get_db
@@ -65,6 +67,9 @@ else:
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24  # 24 hours
 REFRESH_TOKEN_EXPIRE_DAYS = 7
+PASSWORD_RESET_EXPIRE_MINUTES = 30
+AUTH_COOKIE_NAME = os.getenv("AUTH_COOKIE_NAME", "access_token")
+REFRESH_COOKIE_NAME = os.getenv("REFRESH_COOKIE_NAME", "refresh_token")
 
 # Password hashing - use sha256_crypt as fallback for compatibility
 pwd_context = CryptContext(schemes=["sha256_crypt", "bcrypt"], deprecated="auto")
@@ -168,6 +173,11 @@ def get_password_hash(password: str) -> str:
     return pwd_context.hash(password)
 
 
+def validate_password_strength(password: str) -> bool:
+    """Validate password complexity baseline."""
+    return len(password) >= 8 and bool(re.search(r"[A-Za-z]", password)) and bool(re.search(r"\d", password))
+
+
 # =============================================================================
 # Token Functions
 # =============================================================================
@@ -186,6 +196,30 @@ def create_refresh_token(data: dict) -> str:
     expire = datetime.utcnow() + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS)
     to_encode.update({"exp": expire, "type": "refresh"})
     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+
+
+def create_password_reset_token(user_id: int, email: str) -> str:
+    """Create a short-lived password reset token."""
+    expire = datetime.utcnow() + timedelta(minutes=PASSWORD_RESET_EXPIRE_MINUTES)
+    payload = {"sub": user_id, "email": email, "type": "password_reset", "exp": expire}
+    return jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
+
+
+def decode_password_reset_token(token: str) -> Optional[TokenData]:
+    """Decode a password reset token and validate token type."""
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM], options={"verify_sub": False})
+        if payload.get("type") != "password_reset":
+            return None
+        user_id = payload.get("sub")
+        if user_id is not None:
+            user_id = int(user_id)
+        email = payload.get("email")
+        if user_id is None:
+            return None
+        return TokenData(user_id=user_id, email=email)
+    except JWTError:
+        return None
 
 
 def decode_token(token: str) -> Optional[TokenData]:
@@ -214,13 +248,15 @@ def decode_token(token: str) -> Optional[TokenData]:
 # =============================================================================
 
 def get_user_by_email(db: Session, email: str) -> Optional[User]:
-    """Get user by email."""
-    return db.query(User).filter(User.email == email).first()
+    """Get user by email (case-insensitive)."""
+    normalized = email.strip().lower()
+    return db.query(User).filter(func.lower(User.email) == normalized).first()
 
 
 def get_user_by_username(db: Session, username: str) -> Optional[User]:
-    """Get user by username."""
-    return db.query(User).filter(User.username == username).first()
+    """Get user by username (case-insensitive)."""
+    normalized = username.strip().lower()
+    return db.query(User).filter(func.lower(User.username) == normalized).first()
 
 
 def get_user_by_id(db: Session, user_id: int) -> Optional[User]:
@@ -251,24 +287,33 @@ def _ensure_public_user(db: Session) -> User:
 
 def create_user(db: Session, user: UserCreate) -> User:
     """Create a new user."""
+    normalized_email = user.email.strip().lower()
+    normalized_username = user.username.strip().lower()
+
     # Check if email exists
-    if get_user_by_email(db, user.email):
+    if get_user_by_email(db, normalized_email):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Email already registered"
         )
-    
+
     # Check if username exists
-    if get_user_by_username(db, user.username):
+    if get_user_by_username(db, normalized_username):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Username already taken"
         )
-    
+
+    if not validate_password_strength(user.password):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Password must be at least 8 characters and include a letter and a number."
+        )
+
     # Create user
     db_user = User(
-        email=user.email,
-        username=user.username,
+        email=normalized_email,
+        username=normalized_username,
         hashed_password=get_password_hash(user.password),
         full_name=user.full_name,
         role="user"
@@ -279,9 +324,12 @@ def create_user(db: Session, user: UserCreate) -> User:
     return db_user
 
 
-def authenticate_user(db: Session, email: str, password: str) -> Optional[User]:
-    """Authenticate a user with email and password."""
-    user = get_user_by_email(db, email)
+def authenticate_user(db: Session, identifier: str, password: str) -> Optional[User]:
+    """Authenticate a user with email or username and password."""
+    ident = identifier.strip()
+    user = get_user_by_email(db, ident)
+    if not user:
+        user = get_user_by_username(db, ident)
     if not user:
         return None
     if not verify_password(password, cast(str, user.hashed_password)):
@@ -294,6 +342,7 @@ def authenticate_user(db: Session, email: str, password: str) -> Optional[User]:
 # =============================================================================
 
 async def get_current_user(
+    request: Request,
     token: Optional[str] = Depends(oauth2_scheme),
     api_key: Optional[str] = Depends(api_key_header),
     db: Session = Depends(get_db)
@@ -316,8 +365,12 @@ async def get_current_user(
             return get_user_by_id(db, cast(int, api_key_obj.user_id))
     
     # Try JWT token
-    if token:
-        token_data = decode_token(token)
+    request_token = token
+    if not request_token:
+        request_token = request.cookies.get(AUTH_COOKIE_NAME)
+
+    if request_token:
+        token_data = decode_token(request_token)
         if token_data and token_data.user_id:
             return get_user_by_id(db, token_data.user_id)
     

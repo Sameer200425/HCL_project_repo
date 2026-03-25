@@ -8,6 +8,7 @@ import { api } from './api';
 
 const AUTH_DISABLED = process.env.NEXT_PUBLIC_AUTH_DISABLED !== 'false';
 const PUBLIC_TOKEN = 'public-access';
+const COOKIE_SESSION_HINT = 'cookie-session';
 
 const PUBLIC_USER = {
   id: -1,
@@ -45,7 +46,7 @@ interface AuthState {
   isLoading: boolean;
   authDisabled: boolean;
   
-  login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
+  login: (identifier: string, password: string) => Promise<{ success: boolean; error?: string }>;
   register: (email: string, username: string, password: string, fullName?: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => void;
   loadUser: () => Promise<void>;
@@ -76,26 +77,40 @@ export const useAuthStore = create<AuthState>()(
       isLoading: false,
       authDisabled: AUTH_DISABLED,
 
-      login: async (email: string, password: string) => {
+      login: async (identifier: string, password: string) => {
         if (AUTH_DISABLED) {
           set({ user: { ...PUBLIC_USER }, token: PUBLIC_TOKEN, isAuthenticated: true });
           return { success: true };
         }
         set({ isLoading: true });
-        const result = await api.login(email, password);
-        
-        if (result.error) {
-          set({ isLoading: false });
-          return { success: false, error: result.error };
-        }
+        try {
+          const result = await api.login(identifier, password);
 
-        const token = result.data!.access_token;
-        api.setToken(token);
-        set({ token, isLoading: false });
-        
-        // Load user info
-        await get().loadUser();
-        return { success: true };
+          if (result.error) {
+            set({ isLoading: false });
+            return { success: false, error: result.error };
+          }
+
+          const token = result.data?.access_token || COOKIE_SESSION_HINT;
+          api.setToken(token);
+          set({ token });
+
+          // Load user info and confirm auth state before reporting success
+          await get().loadUser();
+          const { isAuthenticated } = get();
+          if (!isAuthenticated) {
+            api.setToken(null);
+            set({ token: null, user: null, isAuthenticated: false, isLoading: false });
+            return { success: false, error: 'Session validation failed. Please try again.' };
+          }
+
+          set({ isLoading: false });
+          return { success: true };
+        } catch {
+          api.setToken(null);
+          set({ token: null, user: null, isAuthenticated: false, isLoading: false });
+          return { success: false, error: 'Unable to sign in right now. Please try again.' };
+        }
       },
 
       register: async (email: string, username: string, password: string, fullName?: string) => {
@@ -103,15 +118,20 @@ export const useAuthStore = create<AuthState>()(
           return { success: true };
         }
         set({ isLoading: true });
-        const result = await api.register(email, username, password, fullName);
-        
-        if (result.error) {
-          set({ isLoading: false });
-          return { success: false, error: result.error };
-        }
+        try {
+          const result = await api.register(email, username, password, fullName);
 
-        set({ isLoading: false });
-        return { success: true };
+          if (result.error) {
+            set({ isLoading: false });
+            return { success: false, error: result.error };
+          }
+
+          set({ isLoading: false });
+          return { success: true };
+        } catch {
+          set({ isLoading: false });
+          return { success: false, error: 'Unable to register right now. Please try again.' };
+        }
       },
 
       logout: () => {
@@ -119,6 +139,7 @@ export const useAuthStore = create<AuthState>()(
           set({ user: { ...PUBLIC_USER }, token: PUBLIC_TOKEN, isAuthenticated: true });
           return;
         }
+        void api.logout();
         api.setToken(null);
         set({ user: null, token: null, isAuthenticated: false });
       },
@@ -128,24 +149,34 @@ export const useAuthStore = create<AuthState>()(
           set({ user: { ...PUBLIC_USER }, isAuthenticated: true });
           return;
         }
+        set({ isLoading: true });
         const token = get().token;
-        if (!token) return;
-        
         api.setToken(token);
-        const result = await api.getMe();
-        
-        if (result.data) {
-          set({ 
-            user: result.data, 
-            isAuthenticated: true 
-          });
-        } else {
-          set({ 
-            user: null, 
-            token: null, 
-            isAuthenticated: false 
-          });
+
+        try {
+          const result = await api.getMe();
+
+          if (result.data) {
+            const currentToken = get().token;
+            set({
+              user: result.data,
+              token: currentToken || COOKIE_SESSION_HINT,
+              isAuthenticated: true,
+              isLoading: false,
+            });
+            return;
+          }
+        } catch {
+          // Fall through to unauthenticated state
         }
+
+        api.setToken(null);
+        set({
+          user: null,
+          token: null,
+          isAuthenticated: false,
+          isLoading: false,
+        });
       },
     }),
     {

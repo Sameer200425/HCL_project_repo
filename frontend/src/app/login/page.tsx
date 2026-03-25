@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, FormEvent } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, FormEvent, useEffect, useRef } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { Radar, Mail, Lock, Loader2, ArrowRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -10,39 +10,57 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { useAuthStore } from '@/lib/store';
 import { useToast } from '@/hooks/use-toast';
+import { useRedirectIfAuthenticated } from '@/hooks/use-redirect-if-authenticated';
+import { mapAuthErrorMessage, normalizeIdentifier, validateLoginInput } from '@/lib/auth-contract';
 
 export default function LoginPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { login, isLoading } = useAuthStore();
   const { toast } = useToast();
+  useRedirectIfAuthenticated('/dashboard');
 
-  const [email, setEmail] = useState('');
+  const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const identifierRef = useRef<HTMLInputElement>(null);
+  const passwordRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    const queryEmail = searchParams.get('email');
+    if (queryEmail) setIdentifier(queryEmail);
+  }, [searchParams]);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
+    if (isSubmitting || isLoading) return;
 
-    if (!email || !password) {
+    const validation = validateLoginInput(identifier, password);
+    if (!validation.isValid) {
+      if (validation.field === 'identifier') identifierRef.current?.focus();
+      if (validation.field === 'password') passwordRef.current?.focus();
       toast({
-        title: 'Missing fields',
-        description: 'Please enter both email and password.',
+        title: 'Invalid input',
+        description: validation.message || 'Please check your input and try again.',
         variant: 'destructive',
       });
       return;
     }
 
-    const result = await login(email, password);
+    setIsSubmitting(true);
+    const result = await login(normalizeIdentifier(identifier), password);
+    setIsSubmitting(false);
 
     if (result.success) {
       toast({
-        title: 'Welcome back',
-        description: 'You have successfully logged in.',
+        title: 'Login successful',
+        description: 'You are now authenticated.',
       });
       router.push('/dashboard');
     } else {
       toast({
         title: 'Login failed',
-        description: result.error || 'Invalid credentials.',
+        description: mapAuthErrorMessage(result.error),
         variant: 'destructive',
       });
     }
@@ -60,9 +78,9 @@ export default function LoginPage() {
               <Radar className="h-6 w-6 text-slate-950" />
             </div>
           </div>
-          <CardTitle className="text-2xl font-bold text-center text-white">Welcome back</CardTitle>
+          <CardTitle className="text-2xl font-bold text-center text-white">Authentication Login</CardTitle>
           <CardDescription className="text-center text-slate-400">
-            Sign in to access the Sentinel Risk platform
+            Sign in with your email and password
           </CardDescription>
         </CardHeader>
         <form onSubmit={handleSubmit}>
@@ -72,32 +90,37 @@ export default function LoginPage() {
               <div className="relative">
                 <Mail className="absolute left-3 top-3 h-4 w-4 text-slate-500" />
                 <Input
+                  ref={identifierRef}
                   id="email"
-                  type="email"
+                  type="text"
                   placeholder="name@example.com"
                   className="pl-9 bg-slate-900/50 border-slate-800 text-slate-200 placeholder:text-slate-500 focus-visible:ring-emerald-500"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  disabled={isLoading}
+                  value={identifier}
+                  onChange={(e) => setIdentifier(e.target.value)}
+                  onBlur={(e) => setIdentifier(normalizeIdentifier(e.target.value).toLowerCase())}
+                  disabled={isLoading || isSubmitting}
+                  autoComplete="email"
                 />
               </div>
             </div>
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <Label htmlFor="password">Password</Label>
-                <Link href="#" className="text-xs text-emerald-400 hover:text-emerald-300 transition-colors">
+                <Link href="/forgot-password" className="text-xs text-emerald-400 hover:text-emerald-300 transition-colors">
                   Forgot password?
                 </Link>
               </div>
               <div className="relative">
                 <Lock className="absolute left-3 top-3 h-4 w-4 text-slate-500" />
                 <Input
+                  ref={passwordRef}
                   id="password"
                   type="password"
                   className="pl-9 bg-slate-900/50 border-slate-800 text-slate-200 placeholder:text-slate-500 focus-visible:ring-emerald-500"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  disabled={isLoading}
+                  disabled={isLoading || isSubmitting}
+                  autoComplete="current-password"
                 />
               </div>
             </div>
@@ -106,9 +129,9 @@ export default function LoginPage() {
             <Button
               type="submit"
               className="w-full bg-emerald-500 hover:bg-emerald-600 text-white font-medium"
-              disabled={isLoading}
+              disabled={isLoading || isSubmitting}
             >
-              {isLoading ? (
+              {isLoading || isSubmitting ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   Signing in...
@@ -127,7 +150,7 @@ export default function LoginPage() {
               </Link>
             </div>
             <div className="text-center text-xs text-slate-500 mt-4">
-              Demo access: Any credentials will work if auth is disabled.
+              Use your registered email and password.
             </div>
           </CardFooter>
         </form>

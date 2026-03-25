@@ -176,6 +176,7 @@ class TestAuth:
 
     def test_get_me_no_auth(self, test_client):
         """Accessing /me without auth should fail."""
+        test_client.cookies.clear()
         resp = test_client.get("/api/auth/me")
         assert resp.status_code in (401, 403)
 

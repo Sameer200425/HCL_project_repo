@@ -162,8 +162,7 @@ export default function GraphPage() {
             <svg 
               width="100%" 
               height="100%" 
-              viewBox="0 0 600 450" 
-              style={{ transform: `scale(${zoom})`, transition: 'transform 0.2s ease-out' }}
+              viewBox="0 0 600 450"
             >
               <defs>
                 <filter id="glow-critical" x="-20%" y="-20%" width="140%" height="140%">
@@ -171,6 +170,8 @@ export default function GraphPage() {
                   <feComposite in="SourceGraphic" in2="blur" operator="over" />
                 </filter>
               </defs>
+
+              <g transform={`scale(${zoom})`}>
 
               {/* Edges */}
               {mockEdges.map((edge, i) => {
@@ -219,6 +220,7 @@ export default function GraphPage() {
                   </text>
                 </g>
               ))}
+              </g>
             </svg>
           </div>
         </Card>

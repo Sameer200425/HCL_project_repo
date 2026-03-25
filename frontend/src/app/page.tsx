@@ -21,7 +21,7 @@ export default function HomePage() {
             onClick={() => router.push('/login')}
             className="text-sm font-medium text-slate-300 hover:text-white transition-colors flex items-center gap-2"
           >
-            <Lock className="w-4 h-4" /> Secure Portal
+            <Lock className="w-4 h-4" /> Log in
           </button>
         </div>
       </nav>

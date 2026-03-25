@@ -1,87 +1,80 @@
 'use client';
 
-import { useState, FormEvent, useRef } from 'react';
-import { useRouter } from 'next/navigation';
+import { FormEvent, useMemo, useRef, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { Radar, Mail, Lock, User, Loader2, ArrowRight } from 'lucide-react';
+import { Loader2, ArrowRight, Lock, Radar } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { useAuthStore } from '@/lib/store';
 import { useToast } from '@/hooks/use-toast';
-import { useRedirectIfAuthenticated } from '@/hooks/use-redirect-if-authenticated';
-import {
-  isDuplicateAccountError,
-  mapAuthErrorMessage,
-  normalizeEmail,
-  normalizeUsername,
-  validateRegisterInput,
-} from '@/lib/auth-contract';
+import { api } from '@/lib/api';
+import { mapAuthErrorMessage, validateRegisterInput } from '@/lib/auth-contract';
 
-export default function RegisterPage() {
+export default function ResetPasswordPage() {
   const router = useRouter();
-  const { register, isLoading } = useAuthStore();
+  const searchParams = useSearchParams();
   const { toast } = useToast();
-  useRedirectIfAuthenticated('/dashboard');
 
-  const [email, setEmail] = useState('');
-  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const emailRef = useRef<HTMLInputElement>(null);
-  const usernameRef = useRef<HTMLInputElement>(null);
   const passwordRef = useRef<HTMLInputElement>(null);
   const confirmPasswordRef = useRef<HTMLInputElement>(null);
 
+  const token = useMemo(() => searchParams.get('token') || '', [searchParams]);
+
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    if (isSubmitting || isLoading) return;
+    if (isSubmitting) return;
 
-    const validation = validateRegisterInput({ email, username, password, confirmPassword });
-    if (!validation.isValid) {
-      if (validation.field === 'email') emailRef.current?.focus();
-      if (validation.field === 'username') usernameRef.current?.focus();
-      if (validation.field === 'password') passwordRef.current?.focus();
-      if (validation.field === 'confirmPassword') confirmPasswordRef.current?.focus();
+    if (!token) {
       toast({
-        title: 'Invalid input',
-        description: validation.message || 'Please check your input and try again.',
+        title: 'Invalid reset link',
+        description: 'The reset link is missing a token. Request a new link.',
         variant: 'destructive',
       });
       return;
     }
 
-    const normalizedEmail = normalizeEmail(email);
-    const normalizedUsername = normalizeUsername(username);
+    const validation = validateRegisterInput({
+      email: 'reset@example.com',
+      username: 'reset_user',
+      password,
+      confirmPassword,
+    });
+
+    if (!validation.isValid) {
+      if (validation.field === 'password') passwordRef.current?.focus();
+      if (validation.field === 'confirmPassword') confirmPasswordRef.current?.focus();
+      toast({
+        title: 'Invalid password',
+        description: validation.message || 'Please check your password and try again.',
+        variant: 'destructive',
+      });
+      return;
+    }
 
     setIsSubmitting(true);
-    const result = await register(normalizedEmail, normalizedUsername, password, normalizedUsername);
+    const result = await api.resetPassword(token, password);
     setIsSubmitting(false);
 
-    if (result.success) {
+    if (result.error) {
       toast({
-        title: 'Account created',
-        description: 'Your account was created. Please log in.',
-      });
-      router.push(`/login?email=${encodeURIComponent(normalizedEmail)}`);
-    } else {
-      if (isDuplicateAccountError(result.error)) {
-        toast({
-          title: 'Account already exists',
-          description: 'Please log in with your existing account.',
-        });
-        router.push(`/login?email=${encodeURIComponent(normalizedEmail)}`);
-        return;
-      }
-      toast({
-        title: 'Registration failed',
+        title: 'Reset failed',
         description: mapAuthErrorMessage(result.error),
         variant: 'destructive',
       });
+      return;
     }
+
+    toast({
+      title: 'Password reset complete',
+      description: 'Your password has been updated. Please sign in.',
+    });
+    router.push('/login');
   };
 
   return (
@@ -96,48 +89,15 @@ export default function RegisterPage() {
               <Radar className="h-6 w-6 text-slate-950" />
             </div>
           </div>
-          <CardTitle className="text-2xl font-bold text-center text-white">Create an account</CardTitle>
+          <CardTitle className="text-2xl font-bold text-center text-white">Set a new password</CardTitle>
           <CardDescription className="text-center text-slate-400">
-            Join Sentinel Risk to start analyzing fraud
+            Use a strong password that is unique to this account.
           </CardDescription>
         </CardHeader>
         <form onSubmit={handleSubmit}>
           <CardContent className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
-              <div className="relative">
-                <Mail className="absolute left-3 top-3 h-4 w-4 text-slate-500" />
-                <Input
-                  ref={emailRef}
-                  id="email"
-                  type="email"
-                  placeholder="name@example.com"
-                  className="pl-9 bg-slate-900/50 border-slate-800 text-slate-200 placeholder:text-slate-500 focus-visible:ring-emerald-500"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  disabled={isLoading || isSubmitting}
-                  autoComplete="email"
-                />
-              </div>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="username">Username</Label>
-              <div className="relative">
-                <User className="absolute left-3 top-3 h-4 w-4 text-slate-500" />
-                <Input
-                  ref={usernameRef}
-                  id="username"
-                  placeholder="johndoe"
-                  className="pl-9 bg-slate-900/50 border-slate-800 text-slate-200 placeholder:text-slate-500 focus-visible:ring-emerald-500"
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
-                  disabled={isLoading || isSubmitting}
-                  autoComplete="username"
-                />
-              </div>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="password">Password</Label>
+              <Label htmlFor="password">New password</Label>
               <div className="relative">
                 <Lock className="absolute left-3 top-3 h-4 w-4 text-slate-500" />
                 <Input
@@ -147,13 +107,13 @@ export default function RegisterPage() {
                   className="pl-9 bg-slate-900/50 border-slate-800 text-slate-200 placeholder:text-slate-500 focus-visible:ring-emerald-500"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  disabled={isLoading || isSubmitting}
+                  disabled={isSubmitting}
                   autoComplete="new-password"
                 />
               </div>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="confirmPassword">Confirm Password</Label>
+              <Label htmlFor="confirmPassword">Confirm password</Label>
               <div className="relative">
                 <Lock className="absolute left-3 top-3 h-4 w-4 text-slate-500" />
                 <Input
@@ -163,7 +123,7 @@ export default function RegisterPage() {
                   className="pl-9 bg-slate-900/50 border-slate-800 text-slate-200 placeholder:text-slate-500 focus-visible:ring-emerald-500"
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
-                  disabled={isLoading || isSubmitting}
+                  disabled={isSubmitting}
                   autoComplete="new-password"
                 />
               </div>
@@ -173,22 +133,22 @@ export default function RegisterPage() {
             <Button
               type="submit"
               className="w-full bg-emerald-500 hover:bg-emerald-600 text-white font-medium"
-              disabled={isLoading || isSubmitting}
+              disabled={isSubmitting}
             >
-              {isLoading || isSubmitting ? (
+              {isSubmitting ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Creating account...
+                  Resetting password...
                 </>
               ) : (
                 <>
-                  Sign up
+                  Update password
                   <ArrowRight className="ml-2 h-4 w-4" />
                 </>
               )}
             </Button>
             <div className="text-center text-sm text-slate-400">
-              Already have an account?{' '}
+              Return to{' '}
               <Link href="/login" className="text-emerald-400 hover:text-emerald-300 font-medium transition-colors">
                 Sign in
               </Link>
