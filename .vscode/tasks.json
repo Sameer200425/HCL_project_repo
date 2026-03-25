@@ -69,6 +69,16 @@
 			"type": "shell",
 			"command": "cd frontend && npm install && npm run dev",
 			"problemMatcher": []
+		},
+		{
+			"label": "module-usage-audit",
+			"type": "shell",
+			"command": "cmd",
+			"args": [
+				"/c",
+				"cd /d C:\\Users\\LENOVO\\.vscode\\project\\bank_vit_project && .venv\\Scripts\\activate.bat && python execute_all_modules.py --mode import --timeout 40 --write-manifest"
+			],
+			"problemMatcher": []
 		}
 	]
 }

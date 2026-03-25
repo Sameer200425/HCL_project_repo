@@ -13,6 +13,7 @@ Launch:
 """
 
 import sys
+import os
 from pathlib import Path
 from contextlib import asynccontextmanager
 
@@ -29,6 +30,7 @@ from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 
 from .database import init_db, get_db
+from .auth import AUTH_DISABLED, ENVIRONMENT, IS_PRODUCTION
 from .routes_auth import router as auth_router
 from .routes_predict import router as predict_router, set_model_manager
 from .routes_analytics import router as analytics_router
@@ -54,6 +56,15 @@ except ImportError as e:
 async def lifespan(app: FastAPI):
     """Application startup and shutdown."""
     print("🚀 Starting Bank Fraud Detection API...")
+    secret_key_present = bool(os.getenv("SECRET_KEY"))
+    print(
+        f"🔐 Auth config: env={ENVIRONMENT}, "
+        f"auth_disabled={AUTH_DISABLED}, secret_key_set={secret_key_present}"
+    )
+    if IS_PRODUCTION:
+        print("🛡️ Production mode active: strict auth/secret validation enforced")
+    else:
+        print("🧪 Development mode active")
     
     # Initialize database
     init_db()
@@ -73,6 +84,33 @@ async def lifespan(app: FastAPI):
 # =============================================================================
 # FastAPI Application
 # =============================================================================
+
+
+def _parse_cors_origins() -> list[str]:
+    """Resolve CORS origins from environment with safe defaults."""
+    raw = os.getenv("CORS_ORIGINS", "").strip()
+    if raw:
+        origins = [item.strip() for item in raw.split(",") if item.strip()]
+    else:
+        origins = [
+            "http://localhost:3000",  # Next.js dev
+            "http://127.0.0.1:3000",
+            "http://localhost:5173",  # Vite dev
+            "http://127.0.0.1:5173",
+        ]
+        if not IS_PRODUCTION:
+            origins.append("*")
+
+    if IS_PRODUCTION and "*" in origins:
+        raise RuntimeError(
+            "CORS_ORIGINS includes '*' in production, which is not allowed. "
+            "Set explicit trusted origins."
+        )
+
+    if not IS_PRODUCTION and "*" in origins:
+        print("⚠️ CORS wildcard '*' enabled in development mode")
+
+    return origins
 
 app = FastAPI(
     title="Bank Fraud Detection API",
@@ -123,16 +161,12 @@ async def rate_limit_handler(request: Request, exc: RateLimitExceeded) -> JSONRe
         content={"detail": f"Rate limit exceeded: {exc.detail}"},
     )
 
-# CORS middleware - Allow frontend
+# CORS middleware - environment aware
+CORS_ORIGINS = _parse_cors_origins()
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000",  # Next.js dev
-        "http://127.0.0.1:3000",
-        "http://localhost:5173",  # Vite dev
-        "http://127.0.0.1:5173",
-        "*"  # Allow all in development
-    ],
+    allow_origins=CORS_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -148,6 +182,12 @@ app.include_router(predict_router)
 app.include_router(analytics_router)
 app.include_router(upload_router)
 app.include_router(monitoring_router)
+
+try:
+    from backend import routes_graph
+    app.include_router(routes_graph.router)
+except ImportError as e:
+    print(f"Warning: Could not import routes_graph. Error: {e}")
 
 
 # =============================================================================

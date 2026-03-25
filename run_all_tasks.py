@@ -16,9 +16,11 @@ import sys
 import time
 import json
 import math
+import argparse
 import shutil
 from pathlib import Path
 from datetime import datetime
+from typing import Any
 
 # Ensure project root on path
 PROJECT_ROOT = Path(__file__).parent
@@ -32,6 +34,7 @@ import torch.nn.functional as F
 from utils.seed import set_seed, get_device
 from utils.logger import setup_logger, TrainingHistory, HyperparameterLogger
 from utils.dataset import create_dataloaders
+from utils.checkpoint_loader import load_vit_from_checkpoint
 from models.vit_model import VisionTransformer
 from models.hybrid_model import build_cnn_baseline, HybridCNNViT, CNNBaseline
 from analytics.performance_metrics import MetricsCalculator, plot_confusion_matrix, plot_training_history
@@ -68,6 +71,34 @@ TINY_VIT_SSL = {
     "mlp_dim": 256,
     "dropout": 0.1,
 }
+
+
+def warm_up_module_usage() -> None:
+    """Optionally touch all modules to keep project-wide module usage active."""
+    try:
+        from module_usage_manifest import touch_all_modules
+
+        summary: dict[str, Any] = touch_all_modules()
+        loaded = summary.get("loaded", 0)
+        total = summary.get("total", 0)
+
+        failed_raw = summary.get("failed", [])
+        failed: list[dict[str, Any]] = []
+        if isinstance(failed_raw, list):
+            failed = [item for item in failed_raw if isinstance(item, dict)]
+
+        print(
+            f"[module-usage] loaded={loaded}/{total} "
+            f"failed={len(failed)}"
+        )
+        if failed:
+            preview = failed[:3]
+            for item in preview:
+                print(f"  - {item.get('module')}: {item.get('error')}")
+            if len(failed) > len(preview):
+                print(f"  ... {len(failed) - len(preview)} more failures")
+    except Exception as exc:
+        print(f"[module-usage] skipped: {exc}")
 
 
 def create_dirs():
@@ -522,9 +553,17 @@ def task3_model_comparison():
     print(f"\n  [3b] Loading ViT (from Task 1)...")
     vit_ckpt_path = os.path.join(CHECKPOINT_DIR, "vit_best.pth")
     if os.path.exists(vit_ckpt_path):
-        vit = build_medium_vit().to(device)
-        ckpt = torch.load(vit_ckpt_path, map_location=device)
-        vit.load_state_dict(ckpt["model_state_dict"])
+        vit, _, loaded_path, _ = load_vit_from_checkpoint(
+            checkpoint_candidates=[
+                os.path.join(CHECKPOINT_DIR, "vit_best.pth"),
+                os.path.join(CHECKPOINT_DIR, "best_model.pth"),
+            ],
+            device=device,
+            image_size=IMAGE_SIZE,
+            num_classes=len(CLASSES),
+            default_config=MEDIUM_VIT,
+        )
+        print(f"  Loaded checkpoint: {loaded_path}")
         vit_metrics, _ = calc.evaluate_model(vit, test_loader, device)
         vit_metrics.update(calc.get_model_size(vit))
         vit_metrics["model_name"] = "ViT (from scratch)"
@@ -770,10 +809,17 @@ def task4_test_pdf_report():
         print("  No trained model found — skipping PDF generation")
         return
 
-    model = build_medium_vit().to(device)
-    ckpt = torch.load(ckpt_path, map_location=device)
-    model.load_state_dict(ckpt["model_state_dict"])
-    model.eval()
+    model, _, loaded_path, model_cfg = load_vit_from_checkpoint(
+        checkpoint_candidates=[
+            os.path.join(CHECKPOINT_DIR, "vit_best.pth"),
+            os.path.join(CHECKPOINT_DIR, "best_model.pth"),
+        ],
+        device=device,
+        image_size=IMAGE_SIZE,
+        num_classes=len(CLASSES),
+        default_config=MEDIUM_VIT,
+    )
+    print(f"  Loaded checkpoint: {loaded_path}")
 
     transform = get_val_transforms(IMAGE_SIZE)
 
@@ -785,7 +831,13 @@ def task4_test_pdf_report():
         cls_dir = Path(DATA_DIR) / cls_name
         if not cls_dir.exists():
             continue
-        sample_path = list(cls_dir.glob("*.jpg"))[0]
+        candidates: list[Path] = []
+        for ext in ("*.jpg", "*.jpeg", "*.png", "*.bmp", "*.tif", "*.tiff"):
+            candidates.extend(cls_dir.glob(ext))
+        if not candidates:
+            print(f"  No sample images found for class '{cls_name}' — skipping")
+            continue
+        sample_path = candidates[0]
         image = Image.open(sample_path).convert("RGB")
         original_np = np.array(image.resize((IMAGE_SIZE, IMAGE_SIZE)))
 
@@ -807,7 +859,8 @@ def task4_test_pdf_report():
             if attn_maps:
                 rollout = compute_attention_rollout(attn_maps)
                 if rollout is not None:
-                    heatmap = attention_to_heatmap(rollout, IMAGE_SIZE, MEDIUM_VIT["patch_size"])
+                    patch_size = int(model_cfg.get("patch_size", MEDIUM_VIT["patch_size"]))
+                    heatmap = attention_to_heatmap(rollout, IMAGE_SIZE, patch_size)
                     attention_overlay = overlay_attention_on_image(original_np, heatmap)
         except Exception as e:
             print(f"    Attention error for {cls_name}: {e}")
@@ -882,8 +935,33 @@ def task5_enhanced_data():
 #  Main — Run All Tasks
 # ===================================================================
 def main():
+    parser = argparse.ArgumentParser(description="Run full or partial 5-task pipeline.")
+    parser.add_argument(
+        "--only-task3",
+        action="store_true",
+        help="Run only Task 3 (model comparison study).",
+    )
+    parser.add_argument(
+        "--only-task4",
+        action="store_true",
+        help="Run only Task 4 (PDF report generation).",
+    )
+    parser.add_argument(
+        "--skip-training",
+        action="store_true",
+        help="Skip training-heavy tasks and run quick validation tasks only.",
+    )
+    args = parser.parse_args()
+
+    if args.only_task3 and args.only_task4:
+        raise SystemExit("Choose only one of --only-task3 or --only-task4.")
+
     set_seed(SEED)
     create_dirs()
+
+    # Module warmup imports many files and is expensive; skip it in quick-run modes.
+    if not (args.only_task3 or args.only_task4 or args.skip_training):
+        warm_up_module_usage()
 
     print("\n" + "#" * 70)
     print("  FULL PIPELINE — 5 TASKS")
@@ -892,6 +970,29 @@ def main():
     print("#" * 70)
 
     start = time.time()
+
+    if args.only_task3:
+        print("\n  Quick mode: running only Task 3")
+        task3_model_comparison()
+        total = time.time() - start
+        print(f"\n  DONE (only Task 3) in {total / 60:.1f} minutes")
+        return
+
+    if args.only_task4:
+        print("\n  Quick mode: running only Task 4")
+        task4_test_pdf_report()
+        total = time.time() - start
+        print(f"\n  DONE (only Task 4) in {total / 60:.1f} minutes")
+        return
+
+    if args.skip_training:
+        print("\n  Quick mode: --skip-training enabled")
+        print("  Skipping Tasks 1 and 2; running Tasks 3 and 4 for validation.")
+        task3_model_comparison()
+        task4_test_pdf_report()
+        total = time.time() - start
+        print(f"\n  DONE (skip-training mode) in {total / 60:.1f} minutes")
+        return
 
     # Task 5 first — validate real data before training
     has_data = task5_enhanced_data()

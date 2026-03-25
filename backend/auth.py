@@ -21,23 +21,47 @@ from .models import User, APIKey
 
 logger = logging.getLogger(__name__)
 
+# Environment mode
+ENVIRONMENT = os.getenv("ENVIRONMENT", "development").strip().lower()
+IS_PRODUCTION = ENVIRONMENT in {"prod", "production"}
+
 # Feature flag to disable authentication entirely
 AUTH_DISABLED = os.getenv("DISABLE_AUTH", "false").lower() in {"1", "true", "yes", "on"}
 PUBLIC_USER_EMAIL = os.getenv("PUBLIC_USER_EMAIL", "public@example.local")
 PUBLIC_USER_USERNAME = os.getenv("PUBLIC_USER_USERNAME", "public_user")
 PUBLIC_USER_FULL_NAME = os.getenv("PUBLIC_USER_FULL_NAME", "Public Analyst")
 
+if IS_PRODUCTION and AUTH_DISABLED:
+    raise RuntimeError(
+        "DISABLE_AUTH is enabled in production. This is unsafe and not allowed. "
+        "Unset DISABLE_AUTH or set it to false."
+    )
+
 # Configuration
 _env_secret = os.getenv("SECRET_KEY")
 if not _env_secret:
-    logger.warning(
-        "SECRET_KEY not set in environment. Generating a random key. "
-        "All JWT tokens will be invalidated on restart. "
-        "Set SECRET_KEY in .env or environment for production."
-    )
+    if IS_PRODUCTION:
+        raise RuntimeError(
+            "SECRET_KEY is required in production. "
+            "Set SECRET_KEY to a strong random value (>=32 chars)."
+        )
     SECRET_KEY = secrets.token_urlsafe(32)
+    logger.warning(
+        "SECRET_KEY not set; generated an ephemeral development key. "
+        "All JWT tokens will be invalidated on restart. "
+        "Set SECRET_KEY in environment before deployment."
+    )
 else:
     SECRET_KEY = _env_secret
+    if IS_PRODUCTION and len(SECRET_KEY) < 32:
+        raise RuntimeError(
+            "SECRET_KEY is too short for production. "
+            "Use at least 32 characters."
+        )
+    if not IS_PRODUCTION and len(SECRET_KEY) < 32:
+        logger.warning(
+            "SECRET_KEY is shorter than recommended for production (32+ chars)."
+        )
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24  # 24 hours
 REFRESH_TOKEN_EXPIRE_DAYS = 7
@@ -210,13 +234,12 @@ def _ensure_public_user(db: Session) -> User:
     if user:
         return user
 
-    # Generate a non-guessable placeholder password even though it will never be used
-    placeholder_password = secrets.token_urlsafe(12)
+    auth_disabled_password = f"auth_disabled::{PUBLIC_USER_EMAIL}"
     public_user = User(
         email=PUBLIC_USER_EMAIL,
         username=PUBLIC_USER_USERNAME,
         full_name=PUBLIC_USER_FULL_NAME,
-        hashed_password=get_password_hash(placeholder_password),
+        hashed_password=get_password_hash(auth_disabled_password),
         role="admin",
         is_active=True,
     )

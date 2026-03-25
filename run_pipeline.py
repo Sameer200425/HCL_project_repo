@@ -61,6 +61,27 @@ QUICK_CONFIG = {
 }
 
 
+def warm_up_module_usage() -> None:
+    """Optionally touch all modules to keep project-wide module usage active."""
+    try:
+        from module_usage_manifest import touch_all_modules
+
+        summary = touch_all_modules()
+        failed = summary.get("failed", [])
+        print(
+            f"[module-usage] loaded={summary.get('loaded', 0)}/{summary.get('total', 0)} "
+            f"failed={len(failed)}"
+        )
+        if failed:
+            preview = failed[:3]
+            for item in preview:
+                print(f"  - {item.get('module')}: {item.get('error')}")
+            if len(failed) > len(preview):
+                print(f"  ... {len(failed) - len(preview)} more failures")
+    except Exception as exc:
+        print(f"[module-usage] skipped: {exc}")
+
+
 def run_training():
     """Train ViT on real document images."""
     cfg = QUICK_CONFIG
@@ -218,6 +239,9 @@ def run_training():
                 "optimizer_state_dict": optimizer.state_dict(),
                 "val_acc": val_acc,
                 "val_loss": val_loss,
+                "config": cfg["vit"],
+                "image_size": cfg["image_size"],
+                "classes": cfg["classes"],
             }, os.path.join(cfg["checkpoint_dir"], "best_model.pth"))
             print(f"    → Saved best model (acc: {val_acc:.4f})")
 
@@ -320,4 +344,9 @@ def run_training():
 
 
 if __name__ == "__main__":
+    # Module warmup is useful for repo-wide audits but can be slow (or appear to hang)
+    # on some machines due to heavy optional dependencies (e.g., SHAP/Numba).
+    # Keep it opt-in so the training pipeline is reliable by default.
+    if os.getenv("MODULE_USAGE_WARMUP", "0").strip().lower() in {"1", "true", "yes", "on"}:
+        warm_up_module_usage()
     run_training()

@@ -16,11 +16,7 @@ export default function HomePage() {
       {/* Navbar */}
       <nav className="relative z-10 border-b border-white/5 bg-slate-950/50 backdrop-blur-md">
         <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-cyan-500 to-emerald-500 flex items-center justify-center shadow-[0_0_20px_rgba(6,182,212,0.4)]">
-              <ShieldAlert className="text-white w-6 h-6" />
-            </div>
-          </div>
+          <div className="flex items-center gap-3" />
           <button 
             onClick={() => router.push('/login')}
             className="text-sm font-medium text-slate-300 hover:text-white transition-colors flex items-center gap-2"
@@ -36,16 +32,34 @@ export default function HomePage() {
           
           {/* Left Content */}
           <div className="flex flex-col items-start text-left space-y-8">
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/5 border border-white/10 text-xs font-semibold uppercase tracking-[0.2em] text-slate-300">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+              Real-time banking document fraud AI
+            </div>
+
             <h1 className="text-5xl lg:text-7xl font-extrabold text-white leading-[1.1] tracking-tight">
-              Intercept Fraud.<br />
+              Bank Document Fraud Detection.<br />
               <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-teal-400 to-emerald-400">
-                In Real-Time.
+                Powered by Vision Transformers.
               </span>
             </h1>
-            
+
             <p className="text-lg lg:text-xl text-slate-400 max-w-xl leading-relaxed">
-              Deploy Vision Transformers to instantly authenticate signatures, detect structural tampering, and evaluate financial risk on cheques and statements with 99.2% accuracy.
+              End-to-end AI that scans cheques, KYC forms, and bank statements and classifies them as genuine, fraud, tampered, or forged in real time.
+              Smart Scanner, explainable heatmaps, and risk scoring help analysts investigate suspicious transactions faster and with more confidence.
             </p>
+
+            <div className="flex flex-wrap gap-3 text-xs sm:text-sm text-slate-200 max-w-2xl">
+              <span className="px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/40 font-medium">
+                99.2% test accuracy · Hybrid CNN + ViT
+              </span>
+              <span className="px-3 py-1 rounded-full bg-cyan-500/10 border border-cyan-500/40 font-medium">
+                4 document classes · Genuine, Fraud, Tampered, Forged
+              </span>
+              <span className="px-3 py-1 rounded-full bg-purple-500/10 border border-purple-500/40 font-medium">
+                Real-time ONNX inference · under 50ms per page
+              </span>
+            </div>
 
             <div className="flex flex-col sm:flex-row gap-4 w-full sm:w-auto pt-4">
               <button
@@ -96,7 +110,7 @@ export default function HomePage() {
               <div className="grid grid-cols-2 gap-4 mt-6">
                 <div className="bg-slate-950 rounded-xl p-4 border border-white/5">
                   <p className="text-slate-500 text-xs uppercase font-bold mb-1 tracking-wider">ViT Confidence</p>
-                  <p className="text-2xl font-black text-white">98.5<span className="text-emerald-400 text-lg">%</span></p>
+                  <p className="text-2xl font-black text-white">99.2<span className="text-emerald-400 text-lg">%</span></p>
                 </div>
                 <div className="bg-slate-950 rounded-xl p-4 border border-white/5">
                   <p className="text-slate-500 text-xs uppercase font-bold mb-1 tracking-wider">ONNX Latency</p>
@@ -124,6 +138,22 @@ export default function HomePage() {
             title="Live Edge Scoring"
             desc="Generates instant Low, Medium, High, or Critical risk profiles to automate banking funnels."
           />
+        </div>
+        
+        {/* Social Proof / Footer */}
+        <div className="mt-16 flex flex-col gap-8 items-center text-center text-slate-400">
+          <div className="flex flex-wrap justify-center gap-4 text-xs uppercase tracking-[0.18em]">
+            <span className="px-3 py-1 rounded-full border border-white/5 bg-white/5 text-slate-300">
+              Built with FastAPI · Next.js · PyTorch
+            </span>
+            <span className="px-3 py-1 rounded-full border border-emerald-500/30 bg-emerald-500/5 text-emerald-200">
+              Focused on cheque and statement fraud analytics
+            </span>
+          </div>
+          <div className="w-full border-t border-white/5 pt-6 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-500">
+            <span>© 2026 BankShield AI · Academic</span>
+            <span>Vision Transformers · Hybrid CNN + ViT · Explainable risk scoring</span>
+          </div>
         </div>
       </main>
 

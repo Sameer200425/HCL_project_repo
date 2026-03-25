@@ -76,6 +76,25 @@ npm run dev
 - **Backend API:** http://localhost:8001
 - **API Docs:** http://localhost:8001/docs
 
+### 5. Quick Pipeline Validation (No Long Training)
+
+Use the pipeline runner with lightweight switches when you want to validate specific steps quickly:
+
+```bash
+# Run only model comparison (Task 3)
+python run_all_tasks.py --only-task3
+
+# Run only PDF report generation (Task 4)
+python run_all_tasks.py --only-task4
+
+# Skip training-heavy tasks (Tasks 1 and 2), run Tasks 3 and 4
+python run_all_tasks.py --skip-training
+```
+
+Notes:
+- `--only-task3` and `--only-task4` are mutually exclusive.
+- Module warmup is opt-in (it can be slow on some machines). To enable repo-wide import warmup for audits, set `MODULE_USAGE_WARMUP=1` before running pipeline scripts.
+
 ### Default Login / Public Access
 ```
 Email: admin@example.com
@@ -83,6 +102,43 @@ Password: admin123
 ```
 
 Authentication is disabled in the current demo build, so the dashboard and prediction tools are open to everyone. Set `DISABLE_AUTH=false` (backend) and `NEXT_PUBLIC_AUTH_DISABLED=false` (frontend) if you need to restore login workflows.
+
+### Environment-Safe Auth Configuration
+
+The backend auth module enforces different behavior for development vs production.
+
+Set these environment variables explicitly:
+
+```bash
+# Required in production-safe setups
+ENVIRONMENT=development   # or production
+SECRET_KEY=your-long-random-secret-32-plus-chars
+DISABLE_AUTH=false
+```
+
+Behavior summary:
+- Development (`ENVIRONMENT=development`):
+	- If `SECRET_KEY` is missing, an ephemeral key is generated and a warning is logged.
+	- Tokens become invalid after restart when using ephemeral key.
+- Production (`ENVIRONMENT=production`):
+	- `SECRET_KEY` is mandatory.
+	- `SECRET_KEY` must be at least 32 characters.
+	- `DISABLE_AUTH=true` is blocked and raises an error.
+
+### Runtime Readiness Checklist (Current Status)
+
+The following runtime checks have been executed in the local environment (as of 18 Mar 2026):
+
+- **Backend & API tests** — `pytest tests/test_backend.py tests/test_api.py tests/test_integration_smoke.py` → **74 passed**.
+- **Deployment tests** — `pytest tests/test_deployment.py` → **16 passed**, ONNX export verified after installing `onnxscript`.
+- **Quick pipeline check (Task 4)** — `python run_all_tasks.py --only-task4` → PDF audit reports successfully generated for all 4 classes using the current `vit_best.pth` checkpoint.
+- **Auth & CORS hardening** — backend enforces env-safe `SECRET_KEY` rules and blocks wildcard CORS in production.
+- **Neo4j graph engine** — `GraphEngine.test_connection()` currently reports **no live Neo4j at bolt://localhost:7687**, so graph features run in degraded/mock mode on this machine.
+
+To reach full production parity, you should also:
+
+- Run Neo4j locally or in Docker, apply `neo4j_seed_data.py`, and confirm that `GraphEngine.test_connection()` returns `True`.
+- Exercise the full Docker compose stack (`docker-compose up`) in the target infrastructure.
 
 ---
 

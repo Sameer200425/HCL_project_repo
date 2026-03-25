@@ -55,6 +55,9 @@ export default function PredictPage() {
   const [isDragging, setIsDragging] = useState(false);
   const [inputMode, setInputMode] = useState<'upload' | 'camera'>('upload');
   const [qualityReport, setQualityReport] = useState<QualityReport | null>(null);
+  const [recentResults, setRecentResults] = useState<
+    { predicted_class: string; risk_level: string; timestamp: string }[]
+  >([]);
 
   useEffect(() => {
     if (!token && !authDisabled) {
@@ -134,7 +137,16 @@ export default function PredictPage() {
     const predResult = await predict(selectedFile, selectedModel);
 
     if (predResult.success) {
-      setResult(predResult.data as PredictionResult);
+      const data = predResult.data as PredictionResult;
+      setResult(data);
+      setRecentResults((prev) => {
+        const entry = {
+          predicted_class: data.predicted_class,
+          risk_level: data.risk_level,
+          timestamp: new Date().toLocaleTimeString(),
+        };
+        return [entry, ...prev].slice(0, 3);
+      });
       toast({
         title: 'Analysis complete',
         description: `Document classified as: ${(predResult.data as PredictionResult).predicted_class}`,
@@ -160,13 +172,14 @@ export default function PredictPage() {
   };
 
   const models = [
-    { id: 'vit', name: 'Vision Transformer', description: 'Highest accuracy profile' },
-    { id: 'vit_ssl', name: 'ViT + SSL', description: 'Best for varied document texture' },
-    { id: 'hybrid', name: 'Hybrid CNN-ViT', description: 'Balanced speed and precision' },
-    { id: 'cnn', name: 'CNN', description: 'Fastest response mode' },
+    { id: 'vit', name: 'Vision Transformer', description: 'Highest test accuracy · Recommended for most cases' },
+    { id: 'vit_ssl', name: 'ViT + SSL', description: 'Robust to noisy scan texture and lighting' },
+    { id: 'hybrid', name: 'Hybrid CNN-ViT', description: 'Balanced throughput and precision for production' },
+    { id: 'cnn', name: 'CNN', description: 'Fastest response mode for bulk triage' },
   ];
 
   const normalizedRisk = result?.risk_level?.toLowerCase() ?? 'low';
+  const riskLabel = normalizedRisk.charAt(0).toUpperCase() + normalizedRisk.slice(1);
 
   return (
     <div className="min-h-screen bg-[#0B1220] text-slate-100 relative overflow-hidden">
@@ -198,9 +211,26 @@ export default function PredictPage() {
       </header>
 
       <main className="relative z-10 max-w-7xl mx-auto px-4 py-8">
-        <div className="mb-8 flex flex-col gap-2">
-          <h1 className="text-3xl md:text-4xl font-extrabold tracking-tight">Document Analysis</h1>
-          <p className="text-slate-300 max-w-3xl">Upload a cheque or bank statement and run model-level fraud analysis with confidence, class distributions, and explanation traces.</p>
+        <div className="mb-8 flex flex-col gap-3">
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/5 border border-white/10 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-300 w-fit">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+            Live cheque &amp; statement fraud scan
+          </div>
+          <h1 className="text-3xl md:text-4xl font-extrabold tracking-tight">Cheque &amp; Statement Analysis</h1>
+          <p className="text-slate-300 max-w-3xl">
+            Upload or scan a banking document to run 4-class fraud analysis with confidence scores, risk band, and an AI explanation summary.
+          </p>
+          <div className="flex flex-wrap gap-2 text-[11px] text-slate-200">
+            <span className="px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/40 font-medium">
+              99.2% test accuracy · Hybrid CNN + ViT
+            </span>
+            <span className="px-3 py-1 rounded-full bg-cyan-500/10 border border-cyan-500/40 font-medium">
+              4 classes · Genuine, Fraud, Tampered, Forged
+            </span>
+            <span className="px-3 py-1 rounded-full bg-purple-500/10 border border-purple-500/40 font-medium flex items-center gap-1">
+              <Sparkles className="h-3 w-3" /> Explainable results · Heatmaps &amp; summary
+            </span>
+          </div>
         </div>
 
         <div className="grid xl:grid-cols-12 gap-6">
@@ -229,6 +259,10 @@ export default function PredictPage() {
                     <Camera className="h-4 w-4" /> Smart Scanner
                   </button>
                 </div>
+
+                <p className="text-xs text-slate-400 px-0.5">
+                  Step 1: Choose how to provide the document. Step 2: Upload or capture it. Step 3: Select a model profile and run analysis.
+                </p>
 
                 {inputMode === 'camera' ? (
                   <SmartScanner onCapture={handleScanCapture} targetSize={224} />
@@ -269,15 +303,30 @@ export default function PredictPage() {
                 )}
 
                 {qualityReport && selectedFile && (
-                  <div className={`flex items-center gap-2 px-4 py-3 rounded-xl text-sm border ${
-                    qualityReport.passed
-                      ? 'bg-emerald-400/10 border-emerald-300/30 text-emerald-100'
-                      : 'bg-amber-400/10 border-amber-300/30 text-amber-100'
-                  }`}>
-                    {qualityReport.passed
-                      ? <><CheckCircle className="h-4 w-4 shrink-0" /> Image quality ready for analysis ({qualityReport.sharpness}%)</>
-                      : <><AlertTriangle className="h-4 w-4 shrink-0" /> {qualityReport.issues[0]}</>
-                    }
+                  <div
+                    className={`flex items-center gap-2 px-4 py-3 rounded-xl text-sm border ${
+                      qualityReport.passed
+                        ? 'bg-emerald-400/10 border-emerald-300/30 text-emerald-100'
+                        : 'bg-amber-400/10 border-amber-300/30 text-amber-100'
+                    }`}
+                  >
+                    {qualityReport.passed ? (
+                      <>
+                        <CheckCircle className="h-4 w-4 shrink-0" />
+                        <span>
+                          Image quality ready for analysis ({qualityReport.sharpness}%).
+                          <span className="ml-1 text-xs opacity-80 block sm:inline">
+                            {qualityReport.sharpness >= 70 ? 'Sharp' : 'Slightly soft'} ·{' '}
+                            {qualityReport.hasGlare ? 'Glare present' : 'Good lighting'} ·{' '}
+                            {qualityReport.edgeDensity > 0.08 ? 'Clear edges' : 'Low edge detail'}
+                          </span>
+                        </span>
+                      </>
+                    ) : (
+                      <>
+                        <AlertTriangle className="h-4 w-4 shrink-0" /> {qualityReport.issues[0]}
+                      </>
+                    )}
                   </div>
                 )}
               </CardContent>
@@ -286,7 +335,9 @@ export default function PredictPage() {
             <Card className="bg-white/[0.03] border-white/10 backdrop-blur-md rounded-2xl shadow-[0_12px_35px_rgba(0,0,0,0.28)]">
               <CardHeader>
                 <CardTitle className="text-slate-100">Model Arena</CardTitle>
-                <CardDescription className="text-slate-300">Choose the model profile for this run.</CardDescription>
+                <CardDescription className="text-slate-300">
+                  Choose a model profile for this cheque or statement. Vision Transformer is recommended for best overall performance.
+                </CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="grid sm:grid-cols-2 gap-3">
@@ -317,6 +368,9 @@ export default function PredictPage() {
                     <><Upload className="mr-2 h-5 w-5" /> Analyze Document</>
                   )}
                 </Button>
+                <p className="mt-2 text-xs text-slate-400 text-center">
+                  {!selectedFile ? 'No document selected yet.' : 'Ready to analyze the selected document.'}
+                </p>
               </CardContent>
             </Card>
           </section>
@@ -330,7 +384,26 @@ export default function PredictPage() {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                {!result ? (
+                {isLoading ? (
+                  <div className="h-[28rem] rounded-2xl border border-white/10 bg-slate-900/40 p-5 animate-pulse">
+                    <div className="h-8 w-40 bg-slate-700/60 rounded-lg mb-4" />
+                    <div className="h-4 w-24 bg-slate-700/40 rounded mb-6" />
+                    <div className="space-y-3 mb-6">
+                      <div className="h-3 w-full bg-slate-700/40 rounded" />
+                      <div className="h-3 w-[85%] bg-slate-700/30 rounded" />
+                      <div className="h-3 w-[70%] bg-slate-700/20 rounded" />
+                    </div>
+                    <div className="space-y-2 mb-6">
+                      <div className="h-3 w-32 bg-slate-700/40 rounded" />
+                      <div className="h-2 w-full bg-slate-700/30 rounded" />
+                    </div>
+                    <div className="space-y-2">
+                      <div className="h-3 w-40 bg-slate-700/40 rounded" />
+                      <div className="h-2 w-full bg-slate-700/30 rounded" />
+                      <div className="h-2 w-[90%] bg-slate-700/20 rounded" />
+                    </div>
+                  </div>
+                ) : !result ? (
                   <div className="h-[28rem] rounded-2xl border border-dashed border-white/15 bg-slate-900/30 flex items-center justify-center text-slate-300">
                     <div className="text-center px-8">
                       <FileImage className="h-16 w-16 mx-auto mb-4 opacity-50" />
@@ -354,7 +427,7 @@ export default function PredictPage() {
                           )}
                         </div>
                       </div>
-                      <p className="text-sm uppercase tracking-wide opacity-90">{normalizedRisk} risk</p>
+                      <p className="text-sm uppercase tracking-wide opacity-90">{riskLabel} risk</p>
                     </div>
 
                     <div>
@@ -386,6 +459,27 @@ export default function PredictPage() {
                         </Label>
                         <div className="mt-2 p-4 rounded-xl border border-white/15 bg-slate-900/50 text-sm text-slate-200 leading-relaxed">
                           {result.explanation}
+                        </div>
+                      </div>
+                    )}
+
+                    {recentResults.length > 0 && (
+                      <div className="pt-3 mt-1 border-t border-white/10">
+                        <p className="text-xs text-slate-400 mb-2">Last runs (this session)</p>
+                        <div className="space-y-1.5">
+                          {recentResults.map((r, idx) => {
+                            const rl = r.risk_level.charAt(0).toUpperCase() + r.risk_level.slice(1);
+                            return (
+                              <div
+                                key={idx}
+                                className="flex items-center justify-between text-xs text-slate-300"
+                              >
+                                <span className="truncate max-w-[45%] capitalize">{r.predicted_class}</span>
+                                <span className="text-slate-400">{rl}</span>
+                                <span className="text-slate-500">{r.timestamp}</span>
+                              </div>
+                            );
+                          })}
                         </div>
                       </div>
                     )}

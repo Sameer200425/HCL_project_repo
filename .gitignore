@@ -10,3 +10,13 @@ results/
 node_modules/
 .next/
 
+# Generated module-audit artifacts
+module_execution_progress.jsonl
+module_execution_report.json
+module_execution_report.txt
+module_usage_manifest.py
+
+# Generated frontend test artifacts
+frontend/playwright-report/
+frontend/test-results/
+

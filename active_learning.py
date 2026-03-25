@@ -38,7 +38,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Dict, List, Optional, Tuple
+from typing import Callable, Dict, List, Optional, Tuple
 
 import numpy as np
 import torch
@@ -160,9 +160,11 @@ class ActiveLearner:
             if hasattr(self.model, "get_embedding") and callable(getattr(self.model, "get_embedding")):
                 emb = getattr(self.model, "get_embedding")(images)
             else:
-                # Fallback: use penultimate layer output
-                logits = self.model(images)
-                emb    = logits   # not ideal but functional
+                try:
+                    emb = self.model(images, return_features=True)
+                except TypeError:
+                    logits = self.model(images)
+                    emb = logits
 
             embeddings.append(emb.cpu().numpy())
 
@@ -254,6 +256,8 @@ class ActiveLearner:
         unlabeled_loader,
         n_instances: int = 50,
         labeled_embeddings: Optional[np.ndarray] = None,
+        review_queue: Optional["HumanReviewQueue"] = None,
+        metadata_provider: Optional[Callable[[int], Dict]] = None,
     ) -> Tuple[List[int], List[SampleScore]]:
         """
         Select the most informative samples for labeling.
@@ -337,6 +341,9 @@ class ActiveLearner:
             "top_scores": [f"{s.score:.4f}" for s in selected[:5]],
         })
 
+        if review_queue is not None:
+            self.send_to_review_queue(review_queue, selected, metadata_provider)
+
         return selected_indices, selected
 
     # ---------------------------------------------------------------- #
@@ -360,6 +367,28 @@ class ActiveLearner:
             "strategy":           self.strategy.value,
             "estimated_savings":  f"{max(0, 100 - int(total_queried / max(self._labeled_count, 1) * 100))}%",
         }
+
+    def send_to_review_queue(
+        self,
+        review_queue: "HumanReviewQueue",
+        selected: List[SampleScore],
+        metadata_provider: Optional[Callable[[int], Dict]] = None,
+    ) -> None:
+        """Send selected samples to a human review queue."""
+        for s in selected:
+            metadata = metadata_provider(s.index) if metadata_provider else {}
+            document_id = str(metadata.get("document_id", s.index))
+            image_path = str(metadata.get("image_path", ""))
+            review_queue.add(
+                document_id=document_id,
+                image_path=image_path,
+                reason=f"Active learning ({s.strategy})",
+                priority=s.priority,
+                model_prediction=s.predicted_class,
+                confidence=s.confidence,
+                uncertainty_score=s.entropy,
+                metadata=metadata,
+            )
 
 
 # ------------------------------------------------------------------ #

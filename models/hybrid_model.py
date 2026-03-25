@@ -213,6 +213,10 @@ class HybridCNNViT(nn.Module):
             return cls_output
         return self.head(cls_output)
 
+    def get_embedding(self, x: torch.Tensor) -> torch.Tensor:
+        """Return CLS embeddings for downstream tasks like active learning."""
+        return self.forward(x, return_features=True)
+
     def get_attention_maps(self) -> list:
         """Extract attention maps from all transformer layers."""
         return [
@@ -263,6 +267,21 @@ class CNNBaseline(nn.Module):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         return self.backbone(x)
+
+    def get_embedding(self, x: torch.Tensor) -> torch.Tensor:
+        """Return pooled backbone features before the classifier head."""
+        x = self.backbone.conv1(x)
+        x = self.backbone.bn1(x)
+        x = self.backbone.relu(x)
+        x = self.backbone.maxpool(x)
+
+        x = self.backbone.layer1(x)
+        x = self.backbone.layer2(x)
+        x = self.backbone.layer3(x)
+        x = self.backbone.layer4(x)
+
+        x = self.backbone.avgpool(x)
+        return torch.flatten(x, 1)
 
 
 # ------------------------------------------------------------------ #

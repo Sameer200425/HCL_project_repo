@@ -1,0 +1,123 @@
+{
+  "generated_at": "2026-03-17T17:09:21.471750",
+  "system": "ViT-FraudDetect v1.0",
+  "bank": "State Bank of India (Demo)",
+  "rbi": [
+    {
+      "requirement": "Model must produce human-interpretable explanations for every fraud flag",
+      "framework": "RBI IT Framework 2011 \u00a7 4.3 (AI Explainability)",
+      "status": "PASS",
+      "evidence": "GradCAM heatmaps + SHAP patch importance + Attention Rollout implemented",
+      "risk_if_fail": "HIGH",
+      "notes": "Regulators may demand per-decision explanation for loans > \u20b91 Cr"
+    },
+    {
+      "requirement": "Model accuracy must exceed 90% on held-out test set",
+      "framework": "RBI Master Direction on Fraud 2016 \u00a7 8",
+      "status": "PASS",
+      "evidence": "Test accuracy: 93.40%",
+      "risk_if_fail": "CRITICAL",
+      "notes": "Accuracy below threshold requires human-in-the-loop for ALL decisions"
+    },
+    {
+      "requirement": "Human override mechanism mandatory for AI fraud decisions",
+      "framework": "RBI Circular DBS.CO.CFMC.BC.1/23.04.001/2023-24",
+      "status": "PASS",
+      "evidence": "Human Review Queue with priority routing implemented; auditor override recorded in audit trail",
+      "risk_if_fail": "CRITICAL",
+      "notes": ""
+    },
+    {
+      "requirement": "Model must be retrained or monitored at least quarterly",
+      "framework": "RBI IT Framework 2011 \u00a7 7.4 (Model Lifecycle)",
+      "status": "PASS",
+      "evidence": "Model retraining cycle set to 90 days; drift detection via MLOps monitoring",
+      "risk_if_fail": "HIGH",
+      "notes": ""
+    },
+    {
+      "requirement": "Confidence calibration: ECE < 0.05 for high-stakes decisions",
+      "framework": "RBI Model Risk Management Guidelines 2023",
+      "status": "PASS",
+      "evidence": "ECE = 0.0382; Temperature Scaling calibration applied",
+      "risk_if_fail": "MEDIUM",
+      "notes": "Miscalibrated models may overstate confidence on genuine documents, missing fraud"
+    },
+    {
+      "requirement": "Audit trail: all predictions logged with timestamp, user, model version",
+      "framework": "RBI IT Framework 2011 \u00a7 9.2 (Audit Logs)",
+      "status": "PASS",
+      "evidence": "All predictions stored in SQLite DB with user_id, model_name, created_at, confidence",
+      "risk_if_fail": "HIGH",
+      "notes": ""
+    },
+    {
+      "requirement": "Data used for training must not include personally identifiable information (PII)",
+      "framework": "RBI Data Localization Guidelines 2018",
+      "status": "PASS",
+      "evidence": "Training data contains document images only; no customer name/account data in ML pipeline",
+      "risk_if_fail": "CRITICAL",
+      "notes": ""
+    }
+  ],
+  "basel": [
+    {
+      "requirement": "Operational risk events (fraud) must be tracked and reported",
+      "framework": "BASEL III Pillar 1 \u2014 Standardised Measurement Approach (SMA)",
+      "status": "PASS",
+      "evidence": "FraudTrendEngine generates daily/weekly/monthly fraud statistics with anomaly flagging",
+      "risk_if_fail": "HIGH",
+      "notes": ""
+    },
+    {
+      "requirement": "Model risk must be quantified and included in capital computation",
+      "framework": "BASEL III Pillar 2 \u2014 ICAAP",
+      "status": "PARTIAL",
+      "evidence": "Uncertainty quantification (MC Dropout) provides model risk scores per prediction; formal capital charge not computed",
+      "risk_if_fail": "MEDIUM",
+      "notes": "Quantitative model risk charge requires actuarial approval \u2014 recommend quarterly review"
+    },
+    {
+      "requirement": "Stress testing: model performance under adversarial/out-of-distribution inputs",
+      "framework": "BASEL III Pillar 2 \u2014 Stress Testing",
+      "status": "PASS",
+      "evidence": "Adversarial testing (FGSM, PGD) + Robustness testing (Gaussian noise, JPEG artifacts) completed",
+      "risk_if_fail": "HIGH",
+      "notes": ""
+    },
+    {
+      "requirement": "Third-party model validation (independent review)",
+      "framework": "BASEL III Model Risk Management SR 11-7",
+      "status": "PARTIAL",
+      "evidence": "Internal validation completed; external validation by risk team recommended before production",
+      "risk_if_fail": "HIGH",
+      "notes": ""
+    }
+  ],
+  "fatf": [
+    {
+      "requirement": "Suspicious document patterns flagged and escalated to compliance",
+      "framework": "FATF Recommendation 20 \u2014 Suspicious Transaction Reporting",
+      "status": "PASS",
+      "evidence": "Fraud-predicted documents auto-queued for human review; branch hotspot reports generated",
+      "risk_if_fail": "CRITICAL",
+      "notes": ""
+    },
+    {
+      "requirement": "Risk-based approach: higher scrutiny for high-value / high-risk transactions",
+      "framework": "FATF Recommendation 10 \u2014 Customer Due Diligence",
+      "status": "PASS",
+      "evidence": "Risk level (LOW/MEDIUM/HIGH/CRITICAL) assigned per prediction; CRITICAL routed to MLRO",
+      "risk_if_fail": "HIGH",
+      "notes": ""
+    },
+    {
+      "requirement": "Record keeping: fraud evidence retained for minimum 5 years",
+      "framework": "FATF Recommendation 11 \u2014 Record Keeping",
+      "status": "PARTIAL",
+      "evidence": "Predictions stored in DB; retention policy and backup schedule to be configured",
+      "risk_if_fail": "HIGH",
+      "notes": "Configure database backup and retention schedule before production deployment"
+    }
+  ]
+}

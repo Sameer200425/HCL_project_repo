@@ -496,10 +496,28 @@ def demo():
                 })
     
     if not test_cases:
-        print("No test images found. Using blank placeholder for demo...")
-        # Create a blank placeholder image (no real data available)
-        test_img = Image.new('RGB', (224, 224), color='white')
-        test_cases = [{'name': 'Placeholder test (add real data)', 'image': test_img, 'expected': 'unknown'}]
+        fallback_dirs = [
+            Path("demo_cheques"),
+            Path("incoming_bank_scans"),
+            Path("demo_statements"),
+        ]
+        fallback_images = []
+        for fdir in fallback_dirs:
+            if fdir.exists():
+                fallback_images.extend(list(fdir.glob("**/*.png")))
+                fallback_images.extend(list(fdir.glob("**/*.jpg")))
+                fallback_images.extend(list(fdir.glob("**/*.jpeg")))
+
+        if not fallback_images:
+            print("No test images found. Add sample images under data/fraud_dataset or demo_cheques.")
+            return
+
+        for img_path in fallback_images[:4]:
+            test_cases.append({
+                "name": f"Sample image ({img_path.name})",
+                "image_path": str(img_path),
+                "expected": "unknown",
+            })
     
     # Run assessments
     print("\n" + "=" * 70)

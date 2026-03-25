@@ -3,7 +3,7 @@ import time
 import requests
 import shutil
 
-API_URL = "http://127.0.0.1:8000/api/predict/single"
+API_URL = "http://127.0.0.1:8001/api/predict/single"
 WATCH_DIR = "incoming_bank_scans"
 
 def start_realtime_scanner():

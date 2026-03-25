@@ -595,6 +595,28 @@ def main():
     print("=" * 60)
     
     results = evaluator.run_full_evaluation(dataloader)
+
+    # Also run robustness sweep from adversarial.attack_detection so that
+    # the shared attack_detection utilities are exercised in this pipeline.
+    try:
+        from adversarial.attack_detection import RobustnessEvaluator, plot_robustness_results
+
+        simple_evaluator = RobustnessEvaluator(model, device)
+        simple_results = simple_evaluator.run_full_robustness_test(dataloader)
+
+        robustness_json = Path('results/attack_robustness.json')
+        robustness_json.parent.mkdir(parents=True, exist_ok=True)
+        with open(robustness_json, 'w') as f:
+            json.dump(simple_results, f, indent=2, default=float)
+
+        plot_robustness_results(simple_results, 'results/attack_robustness.png')
+        print(f"\n✅ Additional robustness results saved to: {robustness_json}")
+        print("✅ Robustness plot saved to: results/attack_robustness.png")
+
+        # Attach to main results dict for downstream consumers
+        results['simple_robustness'] = simple_results
+    except Exception as e:
+        print(f"\n⚠️ Failed to run additional robustness evaluation: {e}")
     
     # Print results
     print("\n" + "=" * 60)

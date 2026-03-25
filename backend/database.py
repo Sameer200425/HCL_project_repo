@@ -4,22 +4,33 @@ Database Configuration
 SQLAlchemy setup with SQLite (easily switch to PostgreSQL for production).
 """
 
+import os
+from pathlib import Path
+
 from sqlalchemy import create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
-from pathlib import Path
 
 # Database URL - SQLite for development, PostgreSQL for production
-DATABASE_DIR = Path(__file__).parent.parent / "data"
-DATABASE_DIR.mkdir(exist_ok=True)
-DATABASE_URL = f"sqlite:///{DATABASE_DIR}/fraud_detection.db"
+def _resolve_database_url() -> str:
+    env = os.getenv("ENVIRONMENT", "development").lower()
+    db_url = os.getenv("DATABASE_URL", "").strip()
 
-# For PostgreSQL: DATABASE_URL = "postgresql://user:password@localhost/fraud_db"
+    if not db_url:
+        database_dir = Path(__file__).parent.parent / "data"
+        database_dir.mkdir(exist_ok=True)
+        db_url = f"sqlite:///{database_dir}/fraud_detection.db"
 
-engine = create_engine(
-    DATABASE_URL, 
-    connect_args={"check_same_thread": False}  # SQLite specific
-)
+    if env == "production" and db_url.startswith("sqlite"):
+        raise ValueError("DATABASE_URL must be set to a production database in production mode.")
+
+    return db_url
+
+
+DATABASE_URL = _resolve_database_url()
+
+connect_args = {"check_same_thread": False} if DATABASE_URL.startswith("sqlite") else {}
+engine = create_engine(DATABASE_URL, connect_args=connect_args)
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 

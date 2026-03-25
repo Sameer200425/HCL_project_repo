@@ -193,8 +193,7 @@ class TestFrontendConfig:
 
     def test_package_json_valid(self):
         pkg = self.FRONTEND_DIR / "package.json"
-        if not pkg.exists():
-            pytest.skip("package.json missing")
+        assert pkg.exists(), "package.json missing"
         data = json.loads(pkg.read_text())
         assert "name" in data
         assert "dependencies" in data

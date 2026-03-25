@@ -289,6 +289,10 @@ class VisionTransformer(nn.Module):
 
         return self.head(cls_output)
 
+    def get_embedding(self, x: torch.Tensor) -> torch.Tensor:
+        """Return CLS embeddings for downstream tasks like active learning."""
+        return self.forward(x, return_features=True)
+
     def get_attention_maps(self) -> list:
         """
         Extract attention weights from all transformer layers.

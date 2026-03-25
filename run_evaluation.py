@@ -13,9 +13,8 @@ from PIL import Image
 
 from utils.seed import set_seed, get_device
 from utils.augmentation import get_val_transforms
-from models.vit_model import VisionTransformer
+from utils.checkpoint_loader import load_vit_from_checkpoint
 from explainability.attention_visualization import (
-    extract_attention_maps,
     compute_attention_rollout,
     attention_to_heatmap,
     overlay_attention_on_image,
@@ -25,7 +24,10 @@ from analytics.risk_scoring import FraudRiskScorer
 
 CLASSES = ["genuine", "fraud", "tampered", "forged"]
 IMAGE_SIZE = 224
-CHECKPOINT = "checkpoints/best_model.pth"
+CHECKPOINT_CANDIDATES = [
+    "checkpoints/vit_best.pth",
+    "checkpoints/best_model.pth",
+]
 RESULTS_DIR = Path("results")
 RESULTS_DIR.mkdir(exist_ok=True)
 
@@ -34,23 +36,29 @@ device = get_device()
 
 
 def build_model():
-    """Build the same tiny ViT used in run_pipeline.py."""
-    model = VisionTransformer(
+    """Build ViT using the architecture stored in the checkpoint."""
+    model, ckpt, checkpoint_path, cfg = load_vit_from_checkpoint(
+        checkpoint_candidates=CHECKPOINT_CANDIDATES,
+        device=device,
         image_size=IMAGE_SIZE,
-        patch_size=32,
-        in_channels=3,
         num_classes=len(CLASSES),
-        embed_dim=64,
-        num_heads=2,
-        num_layers=2,
-        mlp_dim=128,
-        dropout=0.1,
+        default_config={
+            "patch_size": 32,
+            "embed_dim": 64,
+            "num_heads": 2,
+            "num_layers": 2,
+            "mlp_dim": 128,
+            "dropout": 0.1,
+        },
     )
-    ckpt = torch.load(CHECKPOINT, map_location=device)
-    model.load_state_dict(ckpt["model_state_dict"])
-    model = model.to(device).eval()
-    print(f"[OK] Model loaded from {CHECKPOINT} (epoch {ckpt.get('epoch', '?')}, val_acc {ckpt.get('val_acc', '?'):.4f})")
-    return model
+
+    val_acc = ckpt.get("val_acc")
+    val_acc_str = f"{float(val_acc):.4f}" if isinstance(val_acc, (int, float)) else "n/a"
+    print(
+        f"[OK] Model loaded from {checkpoint_path} "
+        f"(epoch {ckpt.get('epoch', 'n/a')}, val_acc {val_acc_str})"
+    )
+    return model, int(cfg["patch_size"])
 
 
 def predict(model, image_tensor: torch.Tensor):
@@ -62,7 +70,7 @@ def predict(model, image_tensor: torch.Tensor):
     return CLASSES[pred_idx], probs.cpu().numpy()
 
 
-def run_xai_demo(model, image_path: str):
+def run_xai_demo(model, image_path: str, patch_size: int):
     """Run XAI analysis on a single image."""
     print(f"\n{'='*50}")
     print(f"  XAI Analysis: {image_path}")
@@ -96,7 +104,6 @@ def run_xai_demo(model, image_path: str):
             rollout = compute_attention_rollout(attention_maps)
             if rollout is not None:
                 # Convert 1D patch attention to 2D heatmap
-                patch_size = 32  # Must match model config
                 heatmap = attention_to_heatmap(rollout, IMAGE_SIZE, patch_size)
                 overlaid = overlay_attention_on_image(original_np, heatmap)
 
@@ -151,14 +158,17 @@ def run_xai_demo(model, image_path: str):
 
 
 def main():
-    model = build_model()
+    model, patch_size = build_model()
 
     # Test on one image per class
     import glob
+    image_exts = ["*.jpg", "*.jpeg", "*.png", "*.bmp", "*.tif", "*.tiff"]
     for cls in CLASSES:
-        images = glob.glob(f"data/raw_images/{cls}/*.jpg")
+        images = []
+        for ext in image_exts:
+            images.extend(glob.glob(f"data/raw_images/{cls}/{ext}"))
         if images:
-            run_xai_demo(model, images[0])
+            run_xai_demo(model, images[0], patch_size)
 
     print(f"\n{'='*50}")
     print(f"  XAI Demo Complete!")
