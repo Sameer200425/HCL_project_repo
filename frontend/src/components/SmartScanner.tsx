@@ -6,6 +6,7 @@ import {
   Sun, Focus, Scan, Loader2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import Image from 'next/image';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import {
@@ -315,11 +316,16 @@ export default function SmartScanner({ onCapture, targetSize = 224 }: SmartScann
         ) : (
           /* Captured preview */
           <div className="space-y-3">
-            <img
-              src={captured}
-              alt="Captured scan"
-              className="w-full rounded-lg bg-slate-100"
-            />
+            {captured ? (
+              <Image
+                src={captured}
+                alt="Captured scan"
+                className="w-full rounded-lg bg-slate-100"
+                width={600}
+                height={400}
+                unoptimized
+              />
+            ) : null}
             <div className="flex items-center gap-2 text-green-600 text-sm font-medium">
               <CheckCircle className="h-4 w-4" /> Image captured &amp; processed ({targetSize}×{targetSize})
             </div>

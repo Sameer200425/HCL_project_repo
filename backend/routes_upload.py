@@ -88,23 +88,39 @@ async def upload_and_detect(
     if not file.content_type or not file.content_type.startswith("image/"):
         raise HTTPException(status_code=400, detail="File must be an image")
 
-    contents = await file.read()
+    try:
+        contents = await file.read()
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Failed to read uploaded file: {str(e)}")
 
     # Save to uploads dir
     saved_name = f"{datetime.now().strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:8]}_{file.filename}"
     saved_path = UPLOADS_DIR / saved_name
 
     if save:
-        with open(saved_path, "wb") as f:
-            f.write(contents)
+        try:
+            with open(saved_path, "wb") as f:
+                f.write(contents)
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Failed to save uploaded file: {str(e)}")
 
-    # Run prediction via model manager
     from .routes_predict import get_model_manager, ModelType
 
-    model_enum = ModelType(model)
-    image = Image.open(io.BytesIO(contents)).convert("RGB")
-    manager = get_model_manager()
-    result = manager.predict(image, model_enum)
+    try:
+        model_enum = ModelType(model)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Invalid model type: {model}. Error: {str(e)}")
+
+    try:
+        image = Image.open(io.BytesIO(contents)).convert("RGB")
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Failed to decode image: {str(e)}")
+
+    try:
+        manager = get_model_manager()
+        result = manager.predict(image, model_enum)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Prediction failed: {str(e)}")
 
     return DetectionResponse(
         filename=file.filename or "unknown",

@@ -19,6 +19,7 @@ import {
   ShieldCheck,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import Image from 'next/image';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Progress } from '@/components/ui/progress';
@@ -287,7 +288,16 @@ export default function PredictPage() {
                       </label>
                     ) : (
                       <div className="relative rounded-2xl overflow-hidden border border-white/10 bg-black/30">
-                        <img src={preview!} alt="Preview" className="w-full h-72 object-contain bg-slate-950/70" />
+                        {preview ? (
+                          <Image
+                            src={preview}
+                            alt="Preview"
+                            className="w-full h-72 object-contain bg-slate-950/70"
+                            width={600}
+                            height={288}
+                            unoptimized
+                          />
+                        ) : null}
                         <Button
                           variant="destructive"
                           size="sm"
