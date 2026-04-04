@@ -185,7 +185,7 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from enum import Enum
+from deployment.fastapi_server import ModelType
 
 # Import fraud explainer for natural language explanations
 try:
@@ -201,12 +201,6 @@ try:
 except ImportError:
     _mlops_enabled = False
     get_model_monitor = None
-
-class ModelType(str, Enum):
-    CNN = "cnn"
-    VIT = "vit"
-    VIT_SSL = "vit_ssl"
-    HYBRID = "hybrid"
 
 
 # Global model manager (will be set by main app)

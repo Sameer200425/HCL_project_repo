@@ -1,3 +1,5 @@
+# pyright: reportMissingImports=false, reportAttributeAccessIssue=false
+
 """Baseline schema migration.
 
 Revision ID: 0001_baseline_schema
