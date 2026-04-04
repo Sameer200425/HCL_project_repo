@@ -3,6 +3,11 @@
  */
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+const API_BASE_CANDIDATES = [
+  API_BASE,
+  'http://localhost:8000',
+  'http://localhost:8001',
+].filter((value, index, arr) => arr.indexOf(value) === index);
 const AUTH_DISABLED = process.env.NEXT_PUBLIC_AUTH_DISABLED !== 'false';
 const PUBLIC_TOKEN = 'public-access';
 const COOKIE_SESSION_HINT = 'cookie-session';
@@ -51,7 +56,6 @@ class ApiClient {
     endpoint: string,
     options: RequestInit = {}
   ): Promise<ApiResponse<T>> {
-    const url = `${API_BASE}${endpoint}`;
     const token = this.getToken();
 
     const headers: Record<string, string> = {
@@ -66,23 +70,31 @@ class ApiClient {
       headers['Content-Type'] = 'application/json';
     }
 
-    try {
-      const response = await fetch(url, {
-        ...options,
-        headers,
-        credentials: 'include',
-      });
+    for (let i = 0; i < API_BASE_CANDIDATES.length; i += 1) {
+      const base = API_BASE_CANDIDATES[i];
+      const url = `${base}${endpoint}`;
+      try {
+        const response = await fetch(url, {
+          ...options,
+          headers,
+          credentials: 'include',
+        });
 
-      if (!response.ok) {
-        const error = await response.json().catch(() => ({ detail: 'Request failed' }));
-        return { error: error.detail || 'Request failed' };
+        if (!response.ok) {
+          const error = await response.json().catch(() => ({ detail: 'Request failed' }));
+          return { error: error.detail || 'Request failed' };
+        }
+
+        const data = await response.json();
+        return { data };
+      } catch (error) {
+        if (i === API_BASE_CANDIDATES.length - 1) {
+          return { error: 'Network error' };
+        }
       }
-
-      const data = await response.json();
-      return { data };
-    } catch (error) {
-      return { error: 'Network error' };
     }
+
+    return { error: 'Network error' };
   }
 
   // Auth endpoints
