@@ -10,6 +10,20 @@ const AUTH_DISABLED = process.env.NEXT_PUBLIC_AUTH_DISABLED !== 'false';
 const PUBLIC_TOKEN = 'public-access';
 const COOKIE_SESSION_HINT = 'cookie-session';
 
+function mapLoginError(error: string): string {
+  const msg = error.toLowerCase();
+  if (msg.includes('timed out')) {
+    return 'Login timed out. Please check your connection and try again.';
+  }
+  if (msg.includes('network')) {
+    return 'Cannot reach the server. Please verify backend is running.';
+  }
+  if (msg.includes('incorrect') || msg.includes('invalid')) {
+    return 'Invalid email or password.';
+  }
+  return error;
+}
+
 const PUBLIC_USER = {
   id: -1,
   email: 'public@example.local',
@@ -88,7 +102,7 @@ export const useAuthStore = create<AuthState>()(
 
           if (result.error) {
             set({ isLoading: false });
-            return { success: false, error: result.error };
+            return { success: false, error: mapLoginError(result.error) };
           }
 
           const token = result.data?.access_token || COOKIE_SESSION_HINT;

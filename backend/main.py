@@ -14,6 +14,7 @@ Launch:
 
 import sys
 import os
+import time
 from pathlib import Path
 from contextlib import asynccontextmanager
 
@@ -24,6 +25,8 @@ sys.path.insert(0, str(PROJECT_ROOT))
 import torch
 from fastapi import FastAPI, Depends, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.trustedhost import TrustedHostMiddleware
+from fastapi.middleware.httpsredirect import HTTPSRedirectMiddleware
 from fastapi.responses import JSONResponse
 from slowapi import Limiter
 from slowapi.util import get_remote_address
@@ -36,6 +39,7 @@ from .routes_predict import router as predict_router, set_model_manager
 from .routes_analytics import router as analytics_router
 from .routes_upload import router as upload_router
 from .routes_monitoring import router as monitoring_router
+from .routes_monitoring import record_request_metric
 from .rate_limit import register_rate_limit
 
 # Import model manager from fast inference module (with fallback)
@@ -72,10 +76,13 @@ async def lifespan(app: FastAPI):
     print("✅ Database initialized")
     
     # Load model manager
-    manager = ModelManager()
-    manager.get_model(ModelType.CNN)  # Pre-load default model
-    set_model_manager(manager)
-    print(f"✅ Models loaded on {manager.device}")
+    try:
+        manager = ModelManager()
+        manager.get_model(ModelType.CNN)  # Pre-load default model
+        set_model_manager(manager)
+        print(f"✅ Models loaded on {manager.device}")
+    except Exception as exc:
+        print(f"⚠️ Model preload failed, continuing in degraded mode: {exc}")
     
     yield
     
@@ -146,6 +153,13 @@ Use Bearer token or X-API-Key header for authenticated endpoints.
     redoc_url="/redoc"
 )
 
+if IS_PRODUCTION:
+    app.add_middleware(HTTPSRedirectMiddleware)
+    trusted_hosts_raw = os.getenv("TRUSTED_HOSTS", "").strip()
+    trusted_hosts = [item.strip() for item in trusted_hosts_raw.split(",") if item.strip()]
+    if trusted_hosts:
+        app.add_middleware(TrustedHostMiddleware, allowed_hosts=trusted_hosts)
+
 # Rate limiter — uses client IP by default
 limiter = Limiter(key_func=get_remote_address, default_limits=["200/minute"])
 app.state.limiter = limiter
@@ -167,6 +181,22 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.middleware("http")
+async def security_headers_and_metrics(request: Request, call_next):
+    start = time.perf_counter()
+    response = await call_next(request)
+    latency_ms = (time.perf_counter() - start) * 1000
+    record_request_metric(latency_ms=latency_ms, status_code=response.status_code)
+
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    response.headers["X-Response-Time-ms"] = f"{latency_ms:.2f}"
+    if IS_PRODUCTION:
+        response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+    return response
 
 # Register rate limiting
 register_rate_limit(app)

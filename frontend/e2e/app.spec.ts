@@ -1,6 +1,6 @@
 import { test, expect, Page } from '@playwright/test';
 
-const API_BASE = process.env.API_BASE || 'http://localhost:8000';
+const API_BASE = process.env.API_BASE || 'http://localhost:8001';
 
 async function ensureBackendAvailable(page: Page) {
   const response = await page.request.get(`${API_BASE}/health`);
@@ -18,7 +18,7 @@ async function registerUser(page: Page, email: string, username: string, passwor
 
 async function loginUser(page: Page, identifier: string, password: string) {
   await page.goto('/login');
-  await page.getByLabel(/email or username/i).fill(identifier);
+  await page.getByLabel(/email/i).fill(identifier);
   await page.getByLabel(/password/i).fill(password);
   await page.getByRole('button', { name: /login|sign in/i }).click();
 }

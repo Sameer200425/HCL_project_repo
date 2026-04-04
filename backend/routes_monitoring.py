@@ -6,6 +6,7 @@ Provides endpoints for model health, metrics, alerts, and reporting.
 from fastapi import APIRouter, Depends, Query
 from typing import Optional, Dict, Any, List
 from pydantic import BaseModel
+from datetime import datetime, timezone
 
 import sys
 sys.path.insert(0, '.')
@@ -16,6 +17,41 @@ router = APIRouter(prefix="/api/monitoring", tags=["monitoring"])
 
 # Global model monitor instance
 _model_monitor: Optional[ModelMonitor] = None
+
+_runtime_metrics: Dict[str, Any] = {
+    "request_count": 0,
+    "error_count": 0,
+    "avg_latency_ms": 0.0,
+    "max_latency_ms": 0.0,
+    "last_updated": None,
+}
+
+
+def record_request_metric(latency_ms: float, status_code: int) -> None:
+    """Update runtime API metrics from request middleware."""
+    count = int(_runtime_metrics["request_count"]) + 1
+    prev_avg = float(_runtime_metrics["avg_latency_ms"])
+    _runtime_metrics["request_count"] = count
+    _runtime_metrics["avg_latency_ms"] = ((prev_avg * (count - 1)) + latency_ms) / count
+    _runtime_metrics["max_latency_ms"] = max(float(_runtime_metrics["max_latency_ms"]), latency_ms)
+    if status_code >= 500:
+        _runtime_metrics["error_count"] = int(_runtime_metrics["error_count"]) + 1
+    _runtime_metrics["last_updated"] = datetime.now(timezone.utc).isoformat()
+
+
+def get_runtime_metrics() -> Dict[str, Any]:
+    """Expose a snapshot of runtime API metrics for health dashboards."""
+    request_count = int(_runtime_metrics["request_count"])
+    error_count = int(_runtime_metrics["error_count"])
+    error_rate = (error_count / request_count) if request_count else 0.0
+    return {
+        "request_count": request_count,
+        "error_count": error_count,
+        "error_rate": round(error_rate, 4),
+        "avg_latency_ms": round(float(_runtime_metrics["avg_latency_ms"]), 2),
+        "max_latency_ms": round(float(_runtime_metrics["max_latency_ms"]), 2),
+        "last_updated": _runtime_metrics["last_updated"],
+    }
 
 
 def get_model_monitor() -> ModelMonitor:
@@ -234,3 +270,19 @@ async def save_metrics() -> Dict[str, str]:
     monitor.save_metrics()
     
     return {"message": "Metrics saved successfully"}
+
+
+@router.get("/runtime")
+async def runtime_metrics() -> Dict[str, Any]:
+    """Get runtime API metrics and basic operational alerts."""
+    metrics = get_runtime_metrics()
+    alerts: List[str] = []
+    if metrics["avg_latency_ms"] > 1500:
+        alerts.append("Average API latency is above 1500ms")
+    if metrics["error_rate"] > 0.05:
+        alerts.append("API 5xx error rate is above 5%")
+    return {
+        "status": "critical" if alerts else "healthy",
+        "alerts": alerts,
+        "metrics": metrics,
+    }

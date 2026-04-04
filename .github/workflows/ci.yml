@@ -142,6 +142,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Set up Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install backend dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
       - name: Set up Node.js ${{ env.NODE_VERSION }}
         uses: actions/setup-node@v4
         with:
@@ -155,13 +165,29 @@ jobs:
       - name: Install Playwright browsers
         run: npx playwright install --with-deps chromium
 
-      - name: Start backend (mock)
-        run: echo "Skipping backend — tests use mocked API or require docker-compose"
+      - name: Start backend API
+        run: |
+          nohup python -m uvicorn backend.main:app --host 127.0.0.1 --port 8001 > backend.log 2>&1 &
+          sleep 10
+          curl -f http://127.0.0.1:8001/health
 
       - name: Run Playwright tests
         run: npx playwright test --project=chromium
         env:
           CI: true
+          BASE_URL: http://localhost:3000
+          API_BASE: http://127.0.0.1:8001
+          NEXT_PUBLIC_API_URL: http://127.0.0.1:8001
+          NEXT_PUBLIC_AUTH_DISABLED: false
+          SECRET_KEY: ci-test-secret-key-do-not-use-in-prod
+          ENVIRONMENT: development
+
+      - name: Upload backend logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-log
+          path: backend.log
 
       - name: Upload Playwright report
         if: always()

@@ -55,6 +55,17 @@ cd frontend
 npm install
 ```
 
+### 2.1 Initialize Database Migrations (Alembic)
+
+```bash
+# from project root
+alembic upgrade head
+
+# create a new migration after model changes
+alembic revision --autogenerate -m "describe change"
+alembic upgrade head
+```
+
 ### 3. Run the Application
 
 **Terminal 1 — Backend API:**
@@ -75,6 +86,7 @@ npm run dev
 - **Frontend:** http://localhost:3000
 - **Backend API:** http://localhost:8001
 - **API Docs:** http://localhost:8001/docs
+- **Runtime Metrics:** http://localhost:8001/api/monitoring/runtime
 
 ### 5. Quick Pipeline Validation (No Long Training)
 
@@ -114,6 +126,9 @@ Set these environment variables explicitly:
 ENVIRONMENT=development   # or production
 SECRET_KEY=your-long-random-secret-32-plus-chars
 DISABLE_AUTH=false
+LOGIN_MAX_FAILS=5
+LOGIN_LOCK_WINDOW_MINUTES=15
+LOGIN_LOCK_MINUTES=15
 ```
 
 Behavior summary:
@@ -124,6 +139,7 @@ Behavior summary:
 	- `SECRET_KEY` is mandatory.
 	- `SECRET_KEY` must be at least 32 characters.
 	- `DISABLE_AUTH=true` is blocked and raises an error.
+	- HTTP security headers and HTTPS redirect middleware are enabled.
 
 ### Runtime Readiness Checklist (Current Status)
 

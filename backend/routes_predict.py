@@ -217,8 +217,16 @@ def set_model_manager(manager):
     _model_manager = manager
 
 def get_model_manager():
+    global _model_manager
     if _model_manager is None:
-        raise HTTPException(status_code=500, detail="Model manager not initialized")
+        try:
+            from deployment.fastapi_server import ModelManager as FallbackModelManager
+            _model_manager = FallbackModelManager()
+        except Exception as exc:
+            raise HTTPException(
+                status_code=503,
+                detail=f"Model manager not available: {exc}. Check model checkpoints and startup logs.",
+            )
     return _model_manager
 
 

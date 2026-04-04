@@ -2,11 +2,19 @@
  * API Client for Backend Communication
  */
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+const DIRECT_API_URL = (process.env.NEXT_PUBLIC_API_URL || '').trim();
+const API_TIMEOUT_MS = Number(process.env.NEXT_PUBLIC_API_TIMEOUT_MS || 12000);
+const API_RETRY_COUNT = Number(process.env.NEXT_PUBLIC_API_RETRY_COUNT || 1);
+
+function normalizeBase(base: string): string {
+  return base.endsWith('/') ? base.slice(0, -1) : base;
+}
+
 const API_BASE_CANDIDATES = [
-  API_BASE,
-  'http://localhost:8000',
+  DIRECT_API_URL ? normalizeBase(DIRECT_API_URL) : '',
+  '', // Use Next.js rewrite proxy by default for stable local/dev routing.
   'http://localhost:8001',
+  'http://localhost:8000',
 ].filter((value, index, arr) => arr.indexOf(value) === index);
 const AUTH_DISABLED = process.env.NEXT_PUBLIC_AUTH_DISABLED !== 'false';
 const PUBLIC_TOKEN = 'public-access';
@@ -16,6 +24,14 @@ const USE_COOKIE_AUTH = !AUTH_DISABLED;
 interface ApiResponse<T> {
   data?: T;
   error?: string;
+}
+
+function classifyNetworkError(error: unknown): string {
+  const message = error instanceof Error ? error.message.toLowerCase() : '';
+  if (message.includes('aborted') || message.includes('timeout')) {
+    return 'Request timed out. Please try again.';
+  }
+  return 'Network error';
 }
 
 class ApiClient {
@@ -57,6 +73,8 @@ class ApiClient {
     options: RequestInit = {}
   ): Promise<ApiResponse<T>> {
     const token = this.getToken();
+    const method = (options.method || 'GET').toUpperCase();
+    const retryable = method === 'GET';
 
     const headers: Record<string, string> = {
       ...(options.headers as Record<string, string>),
@@ -73,23 +91,43 @@ class ApiClient {
     for (let i = 0; i < API_BASE_CANDIDATES.length; i += 1) {
       const base = API_BASE_CANDIDATES[i];
       const url = `${base}${endpoint}`;
-      try {
-        const response = await fetch(url, {
-          ...options,
-          headers,
-          credentials: 'include',
-        });
+      for (let attempt = 0; attempt <= API_RETRY_COUNT; attempt += 1) {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), API_TIMEOUT_MS);
+        try {
+          const response = await fetch(url, {
+            ...options,
+            headers,
+            credentials: 'include',
+            signal: controller.signal,
+          });
 
-        if (!response.ok) {
-          const error = await response.json().catch(() => ({ detail: 'Request failed' }));
-          return { error: error.detail || 'Request failed' };
-        }
+          clearTimeout(timeout);
 
-        const data = await response.json();
-        return { data };
-      } catch (error) {
-        if (i === API_BASE_CANDIDATES.length - 1) {
-          return { error: 'Network error' };
+          if (!response.ok) {
+            const error = await response.json().catch(() => ({ detail: 'Request failed' }));
+            const detail = error.detail || 'Request failed';
+            if (response.status === 401) {
+              return { error: detail || 'Invalid credentials' };
+            }
+            return { error: detail };
+          }
+
+          const data = await response.json();
+          return { data };
+        } catch (error) {
+          clearTimeout(timeout);
+          const shouldRetry = retryable && attempt < API_RETRY_COUNT;
+          if (shouldRetry) {
+            await new Promise((resolve) => setTimeout(resolve, 350 * (attempt + 1)));
+            continue;
+          }
+          if (i === API_BASE_CANDIDATES.length - 1) {
+            const classified = classifyNetworkError(error);
+            console.error('API request failed', { url, endpoint, method, error });
+            return { error: classified };
+          }
+          break;
         }
       }
     }

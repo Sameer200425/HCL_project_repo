@@ -5,6 +5,7 @@ SQLAlchemy setup with SQLite (easily switch to PostgreSQL for production).
 """
 
 import os
+import subprocess
 from pathlib import Path
 
 from sqlalchemy import create_engine
@@ -47,6 +48,16 @@ def get_db():
 
 
 def init_db():
-    """Initialize database tables."""
+    """Initialize database tables with configurable migration strategy."""
+    init_strategy = os.getenv("DB_INIT_STRATEGY", "create_all").strip().lower()
+
+    if init_strategy == "migrate":
+        try:
+            subprocess.run(["alembic", "upgrade", "head"], check=True)
+            print("Database migrated successfully (alembic upgrade head).")
+            return
+        except Exception as exc:
+            print(f"Migration failed, falling back to create_all: {exc}")
+
     Base.metadata.create_all(bind=engine)
-    print("Database initialized successfully!")
+    print("Database initialized successfully (create_all).")
