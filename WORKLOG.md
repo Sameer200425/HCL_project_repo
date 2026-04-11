@@ -211,4 +211,13 @@
 ## Runtime Verification Snapshot (21 Mar 2026)
 
 - Ran frontend E2E tests (Playwright): **8/8 passed** after aligning landing page heading assertion in `frontend/e2e/app.spec.ts` with current hero text.
+
+## Release Readiness Snapshot (11 Apr 2026)
+
+- Ran full backend + integration + model test suite: `python -m pytest -q` -> **137/137 passed**.
+- Added test isolation defaults in `tests/conftest.py` to keep pytest on in-memory SQLite and avoid local DB artifact churn.
+- Made auth endpoint rate limits environment-configurable in `backend/routes_auth.py` and set stable test defaults.
+- Filtered one known third-party ONNX-related FutureWarning in `pytest.ini` to keep CI output actionable.
+- Restored `data/fraud_detection.db` to tracked state after verification to avoid test-generated diffs.
+- Pending production parity check: live Neo4j connectivity confirmation in current runtime.
  

@@ -44,6 +44,9 @@ REFRESH_COOKIE_MAX_AGE = 60 * 60 * 24 * 7
 LOGIN_LOCK_WINDOW_MINUTES = int(os.getenv("LOGIN_LOCK_WINDOW_MINUTES", "15"))
 LOGIN_MAX_FAILS = int(os.getenv("LOGIN_MAX_FAILS", "5"))
 LOGIN_LOCK_MINUTES = int(os.getenv("LOGIN_LOCK_MINUTES", "15"))
+AUTH_LOGIN_RATE_LIMIT = os.getenv("AUTH_LOGIN_RATE_LIMIT", "10/minute")
+AUTH_FORGOT_PASSWORD_RATE_LIMIT = os.getenv("AUTH_FORGOT_PASSWORD_RATE_LIMIT", "5/15minute")
+AUTH_RESET_PASSWORD_RATE_LIMIT = os.getenv("AUTH_RESET_PASSWORD_RATE_LIMIT", "10/hour")
 _failed_login_attempts: dict[str, list[datetime]] = {}
 _locked_until: dict[str, datetime] = {}
 
@@ -127,7 +130,7 @@ async def register(user: UserCreate, db: Session = Depends(get_db)):
 
 
 @router.post("/login", response_model=Token)
-@limiter.limit("10/minute")
+@limiter.limit(AUTH_LOGIN_RATE_LIMIT)
 async def login(request: Request, response: Response, form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
     """Login and get access token."""
     if _is_locked(form_data.username):
@@ -174,7 +177,7 @@ async def login(request: Request, response: Response, form_data: OAuth2PasswordR
 
 
 @router.post("/login/json", response_model=Token)
-@limiter.limit("10/minute")
+@limiter.limit(AUTH_LOGIN_RATE_LIMIT)
 async def login_json(request: Request, response: Response, credentials: UserLogin, db: Session = Depends(get_db)):
     """Login with JSON body (alternative to form)."""
     if _is_locked(credentials.email):
@@ -294,7 +297,7 @@ class ResetPasswordRequest(BaseModel):
 
 
 @router.post("/forgot-password", response_model=ForgotPasswordResponse)
-@limiter.limit("5/15minute")
+@limiter.limit(AUTH_FORGOT_PASSWORD_RATE_LIMIT)
 async def forgot_password(request: Request, payload: ForgotPasswordRequest, db: Session = Depends(get_db)):
     """Issue a password reset token (dev mode returns token for testing)."""
     normalized = payload.email.strip().lower()
@@ -313,7 +316,7 @@ async def forgot_password(request: Request, payload: ForgotPasswordRequest, db: 
 
 
 @router.post("/reset-password")
-@limiter.limit("10/hour")
+@limiter.limit(AUTH_RESET_PASSWORD_RATE_LIMIT)
 async def reset_password(request: Request, payload: ResetPasswordRequest, db: Session = Depends(get_db)):
     """Reset password using short-lived reset token."""
     token_data = decode_password_reset_token(payload.token)
