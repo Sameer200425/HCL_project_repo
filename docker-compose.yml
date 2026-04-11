@@ -6,8 +6,6 @@
 # View logs:
 #   docker-compose logs -f
 
-version: "3.8"
-
 services:
   # FastAPI Backend (authenticated app with DB)
   api:
