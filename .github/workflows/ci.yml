@@ -7,54 +7,27 @@ on:
     branches: [ "main" ]
 
 jobs:
-  build-and-train:
+  train:
     runs-on: ubuntu-latest
 
-    env:
-      PYTHON_VERSION: 3.11
-      NODE_VERSION: 20
-      DOCKER_REGISTRY: ghcr.io
-      IMAGE_NAME: Sameer200425/HCL_project_repo
-
     steps:
-      # Checkout repository
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # Set up Python
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: ${{ env.PYTHON_VERSION }}
+          python-version: '3.11'
 
-      # Upgrade pip
       - name: Upgrade pip
         run: python -m pip install --upgrade pip
 
-      # Debug: list files so you can confirm requirements.txt and config.yaml are found
-      - name: List files
-        run: ls -R .vscode/project/bank_vit_project
+      - name: List repo files
+        run: ls -R
 
-      # Install dependencies from requirements.txt
-      - name: Install dependencies
-        working-directory: .vscode/project/bank_vit_project
-        run: pip install -r requirements.txt
-
-      # Run tests (optional)
-      - name: Run tests
-        working-directory: .vscode/project/bank_vit_project
-        run: pytest --maxfail=1 --disable-warnings -q
-
-      # Train Vision Transformer model using config.yaml
-      - name: Train ViT Fraud Detection Model
-        working-directory: .vscode/project/bank_vit_project
+      - name: Install dependencies manually
         run: |
-          echo "Starting training with config.yaml..."
-          python train.py --config config.yaml
+          pip install torch torchvision timm transformers datasets einops numpy pandas Pillow opencv-python-headless scikit-learn scipy albumentations shap grad-cam captum matplotlib seaborn plotly fpdf2 reportlab pyyaml omegaconf tensorboard tqdm colorama onnx onnxruntime fastapi uvicorn sqlalchemy pytest pytest-cov pytest-asyncio httpx
 
-      # Save model artifacts
-      - name: Upload model checkpoints
-        uses: actions/upload-artifact@v4
-        with:
-          name: vit-model-checkpoints
-          path: .vscode/project/bank_vit_project/checkpoints/
+      - name: Train ViT Fraud Detection Model
+        run: python train.py --config config.yaml
