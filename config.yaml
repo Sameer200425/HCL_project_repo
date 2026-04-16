@@ -3,6 +3,9 @@ data:
   classes: ["authentic", "fraudulent"]
   image_size: 224
 
+name: Generate Sample Data
+        run: python create_sample_data.py
+
 training:
   batch_size: 32
   epochs: 10
