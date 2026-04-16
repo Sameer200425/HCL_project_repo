@@ -79,6 +79,26 @@
 				"cd /d C:\\Users\\LENOVO\\.vscode\\project\\bank_vit_project && .venv\\Scripts\\activate.bat && python execute_all_modules.py --mode import --timeout 40 --write-manifest"
 			],
 			"problemMatcher": []
+		},
+		{
+			"label": "fastapi-8001 (python -m uvicorn)",
+			"type": "shell",
+			"command": "cmd",
+			"args": [
+				"/c",
+				"cd /d C:\\Users\\LENOVO\\.vscode\\project\\bank_vit_project && .venv\\Scripts\\activate.bat && python -m uvicorn backend.main:app --host 127.0.0.1 --port 8001 --reload 2>&1"
+			],
+			"isBackground": true
+		},
+		{
+			"label": "fastapi-8001 (python -m uvicorn)",
+			"type": "shell",
+			"command": "cmd",
+			"args": [
+				"/c",
+				"cd /d C:\\Users\\LENOVO\\.vscode\\project\\bank_vit_project && .venv\\Scripts\\activate.bat && python -m uvicorn backend.main:app --host 127.0.0.1 --port 8001 --reload 2>&1"
+			],
+			"isBackground": true
 		}
 	]
 }
