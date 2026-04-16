@@ -1,6 +1,8 @@
 data:
-  processed_dir: "./data/processed"
-  classes: ["authentic", "fraudulent"]
+  # Changed from ./data/processed to the actual folder created by the script
+  processed_dir: "./data/cedar_signatures" 
+  # Changed to match the folder names created by your script
+  classes: ["genuine", "forged"] 
   image_size: 224
 
 training:
