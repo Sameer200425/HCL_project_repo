@@ -1,4 +1,4 @@
-name: Bank ViT Fraud Detection CI
+name: Bank ViT Fraud Detection CI/CD
 
 on:
   push:
@@ -7,12 +7,11 @@ on:
     branches: [ "main" ]
 
 jobs:
-  build:
+  build-and-train:
     runs-on: ubuntu-latest
 
     env:
       PYTHON_VERSION: 3.11
-      NODE_VERSION: 20
       DOCKER_REGISTRY: ghcr.io
       IMAGE_NAME: Sameer200425/HCL_project_repo
 
@@ -31,22 +30,24 @@ jobs:
       - name: Upgrade pip
         run: python -m pip install --upgrade pip
 
-      # Debug: list files so you can confirm requirements.txt is found
-      - name: List files
-        run: ls -R .vscode/project/bank_vit_project
+      # Debug: list repo files
+      - name: List repo files
+        run: ls -R
 
-      # Install dependencies from requirements.txt
-      - name: Install dependencies
-        working-directory: .vscode/project/bank_vit_project
-        run: pip install -r requirements.txt
-
-      # Optional: Run tests
-      - name: Run tests
-        working-directory: .vscode/project/bank_vit_project
-        run: pytest --maxfail=1 --disable-warnings -q
-
-      # Optional: Build Docker image
-      - name: Build Docker image
+      # Install dependencies manually (since no requirements.txt)
+      - name: Install core dependencies
         run: |
-          docker build -t ${{ env.DOCKER_REGISTRY }}/${{ env.IMAGE_NAME }}:latest .
+          pip install torch torchvision timm transformers datasets einops numpy pandas Pillow opencv-python-headless scikit-learn scipy albumentations shap grad-cam captum matplotlib seaborn plotly fpdf2 reportlab pyyaml omegaconf tensorboard tqdm colorama onnx onnxruntime fastapi uvicorn sqlalchemy pytest pytest-cov pytest-asyncio httpx
 
+      # Train Vision Transformer model using config.yaml
+      - name: Train ViT Fraud Detection Model
+        run: |
+          echo "Starting training with config.yaml..."
+          python train.py --config config.yaml
+
+      # Save model artifacts
+      - name: Upload model checkpoints
+        uses: actions/upload-artifact@v4
+        with:
+          name: vit-model-checkpoints
+          path: checkpoints/
