@@ -1,6 +1,7 @@
 data:
   processed_dir: "./data/processed"
-  classes: ["authentic", "fraudulent"]  
+  classes: ["authentic", "fraudulent"]
+  image_size: 224 
 
 name: Bank ViT Fraud Detection CI/CD
 
