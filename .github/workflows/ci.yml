@@ -22,9 +22,7 @@ jobs:
       - name: Upgrade pip
         run: python -m pip install --upgrade pip
 
-      # This is a great debugging step! Check the output of this step 
-      # in GitHub Actions to see the exact folder structure.
-      - name: List repo files
+      - name: Debug - List repo files
         run: ls -R
 
       - name: Install dependencies manually
@@ -32,6 +30,7 @@ jobs:
           pip install torch torchvision timm transformers datasets einops numpy pandas Pillow opencv-python-headless scikit-learn scipy albumentations shap grad-cam captum matplotlib seaborn plotly fpdf2 reportlab pyyaml omegaconf tensorboard tqdm colorama onnx onnxruntime fastapi uvicorn sqlalchemy pytest pytest-cov pytest-asyncio httpx
 
       - name: Train ViT Fraud Detection Model
-        # IMPORTANT: Change this to the folder that actually contains train.py and config.yaml
-        working-directory: ./your_folder_name 
+        # NOTE: If this fails again, uncomment the line below and replace 'YOUR_FOLDER_NAME' 
+        # with the folder where train.py actually lives.
+        # working-directory: ./YOUR_FOLDER_NAME
         run: python train.py --config config.yaml
