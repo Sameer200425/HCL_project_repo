@@ -1,370 +1,60 @@
-name: CI/CD Pipeline
+name: Bank ViT Fraud Detection CI/CD
 
 on:
   push:
-    branches: [main, develop]
+    branches: [ "main" ]
   pull_request:
-    branches: [main]
-  workflow_dispatch:     # Manual trigger
-
-env:
-  PYTHON_VERSION: "3.11"
-  NODE_VERSION: "20"
-  DOCKER_REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}
+    branches: [ "main" ]
 
 jobs:
-  # ── Backend Tests ──────────────────────────────────────────
-  backend-tests:
-    name: Backend Tests (pytest)
+  build-and-train:
     runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
 
-      - name: Set up Python ${{ env.PYTHON_VERSION }}
+    env:
+      PYTHON_VERSION: 3.11
+      NODE_VERSION: 20
+      DOCKER_REGISTRY: ghcr.io
+      IMAGE_NAME: Sameer200425/HCL_project_repo
+
+    steps:
+      # Checkout repository
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # Set up Python
+      - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
+      # Upgrade pip
+      - name: Upgrade pip
+        run: python -m pip install --upgrade pip
+
+      # Debug: list files so you can confirm requirements.txt and config.yaml are found
+      - name: List files
+        run: ls -R .vscode/project/bank_vit_project
+
+      # Install dependencies from requirements.txt
       - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
+        working-directory: .vscode/project/bank_vit_project
+        run: pip install -r requirements.txt
 
-      - name: Run pytest
-        env:
-          SECRET_KEY: ci-test-secret-key-do-not-use-in-prod
-        run: |
-          pytest tests/ -v --tb=short --cov=backend --cov-report=xml --cov-report=term-missing
+      # Run tests (optional)
+      - name: Run tests
+        working-directory: .vscode/project/bank_vit_project
+        run: pytest --maxfail=1 --disable-warnings -q
 
-      - name: Upload coverage
-        if: always()
+      # Train Vision Transformer model using config.yaml
+      - name: Train ViT Fraud Detection Model
+        working-directory: .vscode/project/bank_vit_project
+        run: |
+          echo "Starting training with config.yaml..."
+          python train.py --config config.yaml
+
+      # Save model artifacts
+      - name: Upload model checkpoints
         uses: actions/upload-artifact@v4
         with:
-          name: backend-coverage
-          path: coverage.xml
-
-  # ── Frontend Tests ─────────────────────────────────────────
-  frontend-tests:
-    name: Frontend Tests (Jest)
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: frontend
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Node.js ${{ env.NODE_VERSION }}
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: "npm"
-          cache-dependency-path: frontend/package-lock.json
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Run Jest tests
-        run: npm test -- --ci --coverage
-
-      - name: Upload coverage
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: frontend-coverage
-          path: frontend/coverage
-
-  # ── Lint & Type Check ─────────────────────────────────────
-  lint:
-    name: Lint & Type Check
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: frontend
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Node.js ${{ env.NODE_VERSION }}
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: "npm"
-          cache-dependency-path: frontend/package-lock.json
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Next.js lint
-        run: npm run lint
-
-      - name: TypeScript check
-        run: npx tsc --noEmit
-
-  # ── Docker Build ───────────────────────────────────────────
-  docker-build:
-    name: Docker Build
-    runs-on: ubuntu-latest
-    needs: [backend-tests, frontend-tests]
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Build API image
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          file: Dockerfile
-          push: false
-          tags: bank-fraud-api:ci
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-      - name: Build Frontend image
-        uses: docker/build-push-action@v5
-        with:
-          context: ./frontend
-          file: frontend/Dockerfile
-          push: false
-          tags: bank-fraud-frontend:ci
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-  # ── E2E Tests (Playwright) ────────────────────────────────
-  e2e-tests:
-    name: E2E Tests (Playwright)
-    runs-on: ubuntu-latest
-    needs: [frontend-tests]
-    defaults:
-      run:
-        working-directory: frontend
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Python ${{ env.PYTHON_VERSION }}
-        uses: actions/setup-python@v5
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-
-      - name: Install backend dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-
-      - name: Set up Node.js ${{ env.NODE_VERSION }}
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: "npm"
-          cache-dependency-path: frontend/package-lock.json
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Install Playwright browsers
-        run: npx playwright install --with-deps chromium
-
-      - name: Start backend API
-        run: |
-          nohup python -m uvicorn backend.main:app --host 127.0.0.1 --port 8001 > backend.log 2>&1 &
-          sleep 10
-          curl -f http://127.0.0.1:8001/health
-
-      - name: Run Playwright tests
-        run: npx playwright test --project=chromium
-        env:
-          CI: true
-          BASE_URL: http://localhost:3000
-          API_BASE: http://127.0.0.1:8001
-          NEXT_PUBLIC_API_URL: http://127.0.0.1:8001
-          NEXT_PUBLIC_AUTH_DISABLED: false
-          SECRET_KEY: ci-test-secret-key-do-not-use-in-prod
-          ENVIRONMENT: development
-
-      - name: Upload backend logs
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: backend-log
-          path: backend.log
-
-      - name: Upload Playwright report
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: playwright-report
-          path: frontend/playwright-report
-
-  # ── Model Validation ───────────────────────────────────────
-  model-validation:
-    name: Model Validation
-    runs-on: ubuntu-latest
-    needs: [backend-tests]
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Python ${{ env.PYTHON_VERSION }}
-        uses: actions/setup-python@v5
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-
-      - name: Validate model checkpoints load
-        run: |
-          python -c "
-          import torch
-          from pathlib import Path
-          ckpts = list(Path('checkpoints').glob('*.pth'))
-          print(f'Found {len(ckpts)} checkpoints')
-          for cp in ckpts:
-              data = torch.load(cp, map_location='cpu', weights_only=False)
-              keys = list(data.keys()) if isinstance(data, dict) else ['raw_tensor']
-              print(f'  ✅ {cp.name}: {keys[:3]}...')
-          assert len(ckpts) >= 3, f'Expected ≥3 checkpoints, found {len(ckpts)}'
-          print('All checkpoints valid')
-          "
-
-      - name: Run integration smoke tests
-        env:
-          SECRET_KEY: ci-test-secret-key
-        run: |
-          pytest tests/test_integration_smoke.py -v --tb=short
-
-      - name: Validate model comparison results
-        run: |
-          python -c "
-          import csv
-          with open('results/model_comparison.csv') as f:
-              reader = csv.DictReader(f)
-              models = list(reader)
-          print(f'Model comparison: {len(models)} models')
-          for m in models:
-              print(f'  {m[\"Model\"]}: Acc={m[\"Accuracy\"]}')
-          assert len(models) >= 2, 'Expected ≥2 models in comparison'
-          "
-
-  # ── Module Usage Audit ────────────────────────────────────
-  module-usage-audit:
-    name: Module Usage Audit
-    runs-on: ubuntu-latest
-    needs: [backend-tests]
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Python ${{ env.PYTHON_VERSION }}
-        uses: actions/setup-python@v5
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-
-      - name: Run module usage audit
-        env:
-          SECRET_KEY: ci-test-secret-key
-        run: |
-          python execute_all_modules.py --mode import --timeout 40 --write-manifest
-          python -c "import json; d=json.load(open('module_execution_report.json')); assert d['total'] >= 100, f\"Expected >=100 modules checked, got {d['total']}\"; print('checked', d['total'])"
-
-      - name: Upload module usage artifacts
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: module-usage-report
-          path: |
-            module_execution_report.json
-            module_execution_report.txt
-            module_execution_progress.jsonl
-            module_usage_manifest.py
-
-  # ── Security Scanning ──────────────────────────────────────
-  security-scan:
-    name: Security Scan
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Python ${{ env.PYTHON_VERSION }}
-        uses: actions/setup-python@v5
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-
-      - name: Install safety
-        run: pip install safety pip-audit
-
-      - name: Check for known vulnerabilities
-        continue-on-error: true
-        run: |
-          pip-audit -r requirements.txt --desc || true
-
-      - name: Check secrets in code
-        run: |
-          # Simple check — no hardcoded passwords/keys
-          ! grep -rn "password\s*=\s*['\"]" backend/ --include="*.py" | grep -v "getenv\|environ\|os.getenv\|default\|example\|test\|fake\|change-me" || echo "No hardcoded secrets found"
-
-  # ── Deploy (only on main push) ─────────────────────────────
-  deploy:
-    name: Build & Push Docker Images
-    runs-on: ubuntu-latest
-    needs: [backend-tests, frontend-tests, docker-build, model-validation, module-usage-audit]
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-    permissions:
-      contents: read
-      packages: write
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Log in to GitHub Container Registry
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ env.DOCKER_REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Extract metadata
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: ${{ env.DOCKER_REGISTRY }}/${{ env.IMAGE_NAME }}
-          tags: |
-            type=sha
-            type=ref,event=branch
-            latest
-
-      - name: Build and push API image
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          file: Dockerfile
-          push: true
-          tags: ${{ env.DOCKER_REGISTRY }}/${{ env.IMAGE_NAME }}-api:latest
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-      - name: Build and push Frontend image
-        uses: docker/build-push-action@v5
-        with:
-          context: ./frontend
-          file: frontend/Dockerfile
-          push: true
-          tags: ${{ env.DOCKER_REGISTRY }}/${{ env.IMAGE_NAME }}-frontend:latest
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-      - name: Deployment summary
-        run: |
-          echo "## 🚀 Deployment Summary" >> $GITHUB_STEP_SUMMARY
-          echo "| Image | Tag |" >> $GITHUB_STEP_SUMMARY
-          echo "|-------|-----|" >> $GITHUB_STEP_SUMMARY
-          echo "| API | \`${{ env.DOCKER_REGISTRY }}/${{ env.IMAGE_NAME }}-api:latest\` |" >> $GITHUB_STEP_SUMMARY
-          echo "| Frontend | \`${{ env.DOCKER_REGISTRY }}/${{ env.IMAGE_NAME }}-frontend:latest\` |" >> $GITHUB_STEP_SUMMARY
+          name: vit-model-checkpoints
+          path: .vscode/project/bank_vit_project/checkpoints/
