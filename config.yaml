@@ -1,7 +1,12 @@
 data:
   processed_dir: "./data/processed"
   classes: ["authentic", "fraudulent"]
-  image_size: 224 
+  image_size: 224
+
+training:
+  batch_size: 32
+  epochs: 10
+  learning_rate: 0.0001
 
 name: Bank ViT Fraud Detection CI/CD
 
