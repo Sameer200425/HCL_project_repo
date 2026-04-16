@@ -1,3 +1,7 @@
+data:
+  processed_dir: "./data/processed"
+
+
 name: Bank ViT Fraud Detection CI/CD
 
 on:
