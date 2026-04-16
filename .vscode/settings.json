@@ -6,5 +6,7 @@
     "css.customData": [".vscode/tailwind.json"],
     "files.associations": {
         "*.css": "tailwindcss"
-    }
+    },
+    "js/ts.tsdk.path": "frontend/node_modules/typescript/lib",
+    "js/ts.tsdk.promptToUseWorkspaceVersion": true
 }
