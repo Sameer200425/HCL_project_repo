@@ -30,7 +30,4 @@ jobs:
           pip install torch torchvision timm transformers datasets einops numpy pandas Pillow opencv-python-headless scikit-learn scipy albumentations shap grad-cam captum matplotlib seaborn plotly fpdf2 reportlab pyyaml omegaconf tensorboard tqdm colorama onnx onnxruntime fastapi uvicorn sqlalchemy pytest pytest-cov pytest-asyncio httpx
 
       - name: Train ViT Fraud Detection Model
-        # NOTE: If this fails again, uncomment the line below and replace 'YOUR_FOLDER_NAME' 
-        # with the folder where train.py actually lives.
-        # working-directory: ./YOUR_FOLDER_NAME
-        run: python train.py --config config.yaml
+        run: python main_training.py --config config.yaml
