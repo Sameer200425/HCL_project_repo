@@ -44,16 +44,20 @@ jobs:
       - name: List repo files
         run: ls -R
 
-      # Install dependencies manually (since no requirements.txt)
+      # Install dependencies manually
       - name: Install core dependencies
         run: |
           pip install torch torchvision timm transformers datasets einops numpy pandas Pillow opencv-python-headless scikit-learn scipy albumentations shap grad-cam captum matplotlib seaborn plotly fpdf2 reportlab pyyaml omegaconf tensorboard tqdm colorama onnx onnxruntime fastapi uvicorn sqlalchemy pytest pytest-cov pytest-asyncio httpx
+
+      # NEW STEP: Generate data so the folder isn't empty!
+      - name: Generate Sample Data
+        run: python create_sample_data.py
 
       # Train Vision Transformer model using config.yaml
       - name: Train ViT Fraud Detection Model
         run: |
           echo "Starting training with config.yaml..."
-          python train.py --config config.yaml
+          python main_training.py --config config.yaml
 
       # Save model artifacts
       - name: Upload model checkpoints
