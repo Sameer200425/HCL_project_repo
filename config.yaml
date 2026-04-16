@@ -1,6 +1,6 @@
 data:
   processed_dir: "./data/processed"
-
+  classes: ["authentic", "fraudulent"]  
 
 name: Bank ViT Fraud Detection CI/CD
 
